@@ -100,7 +100,8 @@ current Pagoda Edict, so demand comes from play rather than from a script.
 | Players selling | A merchant's stock rises above what it wants, so its price falls |
 | Players buying | Stock drains and recent demand builds, so the price rises |
 | Merchants learning | Stock that stays too high or too low for a market day moves what the merchant wants to hold, within limits |
-| Merchant purses | A merchant that overpays runs low, stops buying, and finally closes until players rekindle it |
+| Merchant purses | A merchant that overpays runs low, stops buying, and closes at the end of a bad day until players rekindle it |
+| Storerooms | A merchant flooded past five times its target refuses more, so a flood has to go elsewhere |
 | Pagoda Edict | The favoured school rotates weekly by a fixed rule |
 | Spirit veins | Commission rewards fall when a vein is over-farmed and recover over time |
 | Market events | Shortages and gluts rotate through the material families |
@@ -108,18 +109,17 @@ current Pagoda Edict, so demand comes from play rather than from a script.
 
 ## Faucets and sinks
 
-**Faucets:** commission and mission rewards, merchant restocking, temple offerings to merchants (a small hourly
-stipend up to a cap).
+**Faucets:** commission and mission rewards, and caravans that pay merchants a little for surplus stock.
 
 **Sinks:** forging and tempering costs, the 75% lost to salvage, consumables used in battle, merchant spreads,
-the Ministry tax, broker fees and stall rent.
+merchant upkeep (rent and wages every open hour), caravan restocking costs, the Ministry tax, broker fees and stall rent.
 
 **Balance targets**, enforced by tests:
 
 - a calm player can afford a first forged uncommon technique within 15 minutes;
 - flooding one essence drops its price by at least half within a market day;
 - buying and selling straight back always loses money;
-- with the default cast, the total jade supply grows by no more than 3% per market day.
+- with the default cast, the total jade supply grows or shrinks by no more than 3% per market day.
 
 ## Player-owned market
 

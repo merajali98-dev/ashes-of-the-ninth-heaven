@@ -86,9 +86,9 @@ test('buying and selling straight back always loses money, in either order', () 
     const m = MERCHANTS[between(r, 0, MERCHANTS.length - 1)];
     let state = openingState(m, MARKET_TOKENS);
     const ids = Object.keys(state.target), t = token(ids[between(r, 0, ids.length - 1)]);
-    state = {...state, stock: {...state.stock, [t.id]: between(r, 30, 400)}, flow: {[t.id]: between(r, -300, 300)},
+    const target = state.target[t.id], qty = between(r, 1, Math.min(25, target)), tick = between(r, 0, 1000), rep = between(r, 0, BPS);
+    state = {...state, stock: {...state.stock, [t.id]: between(r, qty, target * 3)}, flow: {[t.id]: between(r, -3 * target, 3 * target)},
       specialty: r() < .5 ? t.school : null};
-    const qty = between(r, 1, 25), tick = between(r, 0, 1000), rep = between(r, 0, BPS);
     const buy = quote({merchant: m, state, token: t, side: 'buy', qty, tick, reputationBps: rep});
     const back = quote({merchant: m, state: applyQuote(state, buy), token: t, side: 'sell', qty, tick, reputationBps: rep});
     assert.ok(buy.ok && back.ok, buy.reason || back.reason);
@@ -118,14 +118,14 @@ test('a thin purse pays less, an empty one stops buying, and a broke shop closes
   assert.equal(thinQuote.status, 'struggling');
   assert.ok(thinQuote.bid < healthy.bid);
   assert.match(thinQuote.lines.join(' '), /purse is thin/);
-  const nearlyEmpty = {...base, cash: Math.trunc(lu.startCash * 0.151)};
+  const nearlyEmpty = {...base, cash: Math.trunc(lu.startCash * 0.101)};
   assert.equal(quote({merchant: lu, state: nearlyEmpty, token: cinder, side: 'sell', qty: 99, tick: quietTick}).code, 'PURSE_EMPTY');
   const broke = tickMerchant(lu, {...base, cash: Math.trunc(lu.startCash * 0.04)}, quietTick, MARKET_TOKENS);
   assert.equal(broke.closed, true);
   assert.equal(merchantStatus(lu, broke), 'closed');
   assert.equal(quote({merchant: lu, state: broke, token: cinder, side: 'buy', tick: quietTick}).code, 'CLOSED');
   const stillClosed = tickMerchant(lu, broke, quietTick + 1, MARKET_TOKENS);
-  assert.equal(stillClosed.cash, broke.cash, 'a closed shop receives no offerings');
+  assert.equal(stillClosed.cash, broke.cash, 'a shuttered shop pays no upkeep');
   const rekindled = tickMerchant(lu, {...broke, cash: Math.trunc(lu.startCash * PURSE.reopenAtBps / BPS)}, quietTick + 2, MARKET_TOKENS);
   assert.equal(rekindled.closed, false);
 });
@@ -134,12 +134,16 @@ test('caravans pull stock back toward target and demand memory fades', () => {
   const he = merchant('he-feng'), t = token('mat:essence-thunder-1');
   let state = openingState(he, MARKET_TOKENS);
   const target = state.target[t.id];
+  let calm = state;
   state = {...state, stock: {...state.stock, [t.id]: target * 3}, flow: {[t.id]: -200}};
-  const cashBefore = state.cash;
-  for (let h = 0; h < 72; h++) state = tickMerchant(he, state, h * 24 + 1, MARKET_TOKENS);  // avoid day ends: no learning
+  for (let h = 0; h < 72; h++) {       // avoid day ends, so the merchant doesn't learn mid-test
+    state = tickMerchant(he, state, h * 24 + 1, MARKET_TOKENS);
+    calm = tickMerchant(he, calm, h * 24 + 1, MARKET_TOKENS);
+  }
   assert.ok(Math.abs(state.stock[t.id] - target) < target * 0.25, `stock ${state.stock[t.id]} vs target ${target}`);
   assert.ok(Math.abs(state.flow[t.id]) <= 1);
-  assert.ok(state.cash > cashBefore, 'selling off surplus and offerings add to the purse');
+  assert.ok(state.cash > calm.cash, 'caravans pay something for surplus');
+  assert.ok(calm.cash < he.startCash, 'an idle shop still pays upkeep');
 });
 
 test('merchants learn within the band, and agents can only nudge targets and specialty', () => {
@@ -188,6 +192,10 @@ test('every quote explains itself, including refusals', () => {
   assert.match(refused.lines[0], /doesn't deal in/);
   assert.equal(quote({merchant: qiu, state, token: token('mat:seal-jade-1'), side: 'sell', qty: 0}).code, 'BAD_QTY');
   assert.equal(quote({merchant: qiu, state, token: token('mat:seal-jade-1'), side: 'buy', qty: 99}).code, 'OUT_OF_STOCK');
+  const full = {...state, stock: {...state.stock, 'mat:seal-jade-1': state.target['mat:seal-jade-1'] * 5}};
+  const refusedFull = quote({merchant: qiu, state: full, token: token('mat:seal-jade-1'), side: 'sell'});
+  assert.equal(refusedFull.code, 'STOREROOM_FULL');
+  assert.match(refusedFull.lines[0], /storeroom is full/);
 });
 
 test('quotes are deterministic', () => {

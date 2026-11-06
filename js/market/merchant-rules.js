@@ -13,6 +13,9 @@
  * Each unit in a trade is priced at the stock it leaves behind, so selling 20 at once earns less than 20 times the
  * first price, and buying then selling straight back always loses money.
  *
+ * A merchant pays upkeep every open hour, refuses more of a good once its storeroom holds 5× its target, stops buying
+ * when its purse falls under 10%, and shutters the shop if a market day ends under 15%. Players can rekindle it.
+ *
  * Rules for this file: pure functions only (no clock, no randomness, no I/O, no imports). Whole numbers only:
  * prices are jade cents (100 = 1 jade), rates are basis points (10000 = 100%), division truncates toward zero.
  * That keeps JavaScript and the Rust contract identical to the last cent.
@@ -32,17 +35,19 @@ export const TEMPERAMENTS = Object.freeze({
   greedy: {kQuarters: 4, spreadBps: 800, flowWeightBps: 3_500, flowFadeBps: 1_200, reversionBps: 400, loyaltyBps: 0},
 });
 export const DEMAND_BAND = Object.freeze({minBps: 8_000, maxBps: 12_500});
+export const STOREROOM_BPS = 50_000;        // a merchant holds at most 5× its target, then refuses more
 export const SPECIALTY_PREMIUM_BPS = 300;   // must stay below every merchant's narrowest spread (checked by validateRules)
 
 /** Purse thresholds, as a share of the merchant's starting purse. */
 export const PURSE = Object.freeze({
   thinBelowBps: 3_000, thinPayBps: 8_500,    // under 30%: pays 85% of the usual bid
-  stopBuyingBelowBps: 1_500,                 // never pays out below 15%
-  closeBelowBps: 500, reopenAtBps: 2_000,    // closes under 5%; reopens once rekindled to 20%
-  stipendBps: 20, capBps: 15_000,            // temple offerings: 0.2% per hour, up to 150%
+  stopBuyingBelowBps: 1_000,                 // never pays out below 10%
+  closeAtDayEndBelowBps: 1_500,              // a market day that ends under 15% shutters the shop
+  closeBelowBps: 500, reopenAtBps: 2_000,    // closes at once under 5%; reopens once rekindled to 20%
+  upkeepBps: 10,                             // rent and wages: 0.1% of the starting purse every open hour
 });
-/** Caravans: each hour stock drifts toward target. Restocking costs 60% of base; dumping surplus returns 40%. */
-export const CARAVAN = Object.freeze({restockCostBps: 6_000, surplusValueBps: 4_000});
+/** Caravans: each hour stock drifts toward target. Restocking costs 60% of base; dumping surplus returns 15%. */
+export const CARAVAN = Object.freeze({restockCostBps: 6_000, surplusValueBps: 1_500});
 /** Merchants learn: stock outside the band at the end of a market day moves the target, within 60%–160%. */
 export const ADAPTATION = Object.freeze({everyTicks: 24, bandBps: 2_000, stepBps: 500, minBps: 6_000, maxBps: 16_000});
 /** How much each merchant wants to hold, by material tier 1–5. */
@@ -59,6 +64,8 @@ export const EVENTS = Object.freeze({periodTicks: 30, durationTicks: 8, list: [
   {id: 'veil-funerals', family: 'essence-shade', priceBps: 12_500, text: 'Forbidden funerals need Umbral Essence'},
   {id: 'archive-surplus', family: 'essence-lotus', priceBps: 8_000, text: 'The Archive sold its surplus Verdant Essence'},
 ]});
+/** Patrons may own up to 49% of a merchant (their stake against its starting purse) and share its daily profit. */
+export const PATRONAGE = Object.freeze({maxPublicBps: 4_900, maxPatrons: 10});
 /** The Paper Taxman's cut of every trade. Collective Testimony (players clearing the campaign) lowers it. */
 export const TAX = Object.freeze({baseBps: 300});
 
@@ -86,7 +93,7 @@ export const MERCHANTS = Object.freeze([
 
 // ---------------------------------------------------------------------------------------------------------------
 // Integer helpers (mirrored in Rust). `div` truncates toward zero, like Rust's integer division.
-const div = (a, b) => Math.trunc(a / b);
+const div = (a, b) => Math.trunc(a / b) || 0;   // || 0 turns -0 into 0: Rust integers have no negative zero
 const ceilDiv = (a, b) => Math.trunc((a + b - 1) / b);   // non-negative a only
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 const pct = bps => `${bps >= 0 ? '+' : '−'}${Math.abs(bps) / 100}%`;
@@ -170,24 +177,25 @@ export function quote({merchant, state, token, side, qty = 1, tick = 0, reputati
   if (!target) return fail('NOT_TRADED', `${merchant.name} doesn't deal in ${token.name}.`);
   if (status === 'closed') return fail('CLOSED', `${merchant.name}'s shop is shuttered until someone rekindles it.`);
   if (side === 'buy' && stock < qty) return fail('OUT_OF_STOCK', `${merchant.name} only has ${stock} ${token.name}.`);
+  if (side === 'sell' && (stock + qty) * BPS > target * STOREROOM_BPS) return fail('STOREROOM_FULL', `${merchant.name}'s storeroom is full of ${token.name}.`);
   const units = [];
   for (let i = 1; i <= qty; i++) {
     const s = side === 'sell' ? stock + i : stock - i, f = side === 'sell' ? flow - i : flow + i;
     units.push(unitPrices(merchant, token, state, side, at(s, f).mid, reputationBps, tax));
   }
   const total = units.reduce((sum, n) => sum + n, 0);
-  if (side === 'sell' && (state.cash - total) * BPS < merchant.startCash * PURSE.stopBuyingBelowBps)
+  const taxPaid = side === 'sell' ? div(total * tax, BPS - tax) : total - div(total * BPS, BPS + tax);
+  if (side === 'sell' && (state.cash - total - taxPaid) * BPS < merchant.startCash * PURSE.stopBuyingBelowBps)
     return fail('PURSE_EMPTY', `${merchant.name}'s purse is too thin to buy that many.`);
-  const done = {...base, ok: true, code: 'OK', reason: '', units, total,
-    taxPaid: side === 'sell' ? div(total * tax, BPS - tax) : total - div(total * BPS, BPS + tax)};
+  const done = {...base, ok: true, code: 'OK', reason: '', units, total, taxPaid};
   return {...done, lines: explain(merchant, token, state, now, {...done, tax, reputationBps})};
 }
 
-/** Apply an accepted quote to a copy of the merchant's state. */
+/** Apply an accepted quote to a copy of the merchant's state. The Paper Taxman's cut leaves the merchant's purse too. */
 export function applyQuote(state, q) {
   if (!q.ok) return state;
   const sign = q.side === 'sell' ? 1 : -1;
-  return {...state, cash: state.cash - sign * q.total,
+  return {...state, cash: state.cash - sign * q.total - q.taxPaid,
     stock: {...state.stock, [q.token]: (state.stock[q.token] ?? 0) + sign * q.qty},
     flow: {...state.flow, [q.token]: (state.flow[q.token] ?? 0) - sign * q.qty}};
 }
@@ -216,12 +224,12 @@ export function explain(merchant, token, state, now, q, failure = '') {
   return lines;
 }
 
-/** One market hour for one merchant: offerings, caravans, fading demand memory, learning and closure. */
+/** One market hour for one merchant: upkeep, caravans, fading demand memory, learning and closure. */
 export function tickMerchant(merchant, state, tick, tokens) {
   const t = temperamentOf(merchant), next = {...state, stock: {...state.stock}, flow: {...state.flow}, target: {...state.target}};
   if (merchantStatus(merchant, next) === 'open' && next.closed) next.closed = false;
   if (next.closed) return next;
-  next.cash = Math.min(next.cash + div(merchant.startCash * PURSE.stipendBps, BPS), Math.max(next.cash, div(merchant.startCash * PURSE.capBps, BPS)));
+  next.cash = Math.max(0, next.cash - div(merchant.startCash * PURSE.upkeepBps, BPS));
   for (const id of Object.keys(next.target)) {
     const token = tokens[id], gap = next.target[id] - (next.stock[id] ?? 0);
     if (token && gap) {
@@ -242,7 +250,8 @@ export function tickMerchant(merchant, state, tick, tokens) {
       next.target[id] = clamp(next.target[id], div(base * ADAPTATION.minBps, BPS), div(base * ADAPTATION.maxBps, BPS));
     }
   }
-  if (purseState(merchant, next.cash) === 'closed') next.closed = true;
+  const dayEnds = (tick + 1) % TIME.ticksPerDay === 0;
+  if (purseState(merchant, next.cash) === 'closed' || (dayEnds && next.cash * BPS < merchant.startCash * PURSE.closeAtDayEndBelowBps)) next.closed = true;
   return next;
 }
 
@@ -279,7 +288,8 @@ export function validateRules() {
     if (SPECIALTY_PREMIUM_BPS >= narrowest) problems.push(`${m.id}: specialty premium must be below the narrowest spread`);
     if (!Number.isSafeInteger(m.startCash) || m.startCash <= 0) problems.push(`${m.id}: starting purse must be positive`);
   }
-  if (PURSE.closeBelowBps >= PURSE.stopBuyingBelowBps || PURSE.stopBuyingBelowBps >= PURSE.thinBelowBps) problems.push('purse thresholds out of order');
+  if (!(PURSE.closeBelowBps < PURSE.stopBuyingBelowBps && PURSE.stopBuyingBelowBps < PURSE.closeAtDayEndBelowBps &&
+    PURSE.closeAtDayEndBelowBps < PURSE.thinBelowBps && PURSE.closeAtDayEndBelowBps < PURSE.reopenAtBps)) problems.push('purse thresholds out of order');
   if (CARAVAN.surplusValueBps >= CARAVAN.restockCostBps) problems.push('caravans must not profit from round trips');
   return problems;
 }
