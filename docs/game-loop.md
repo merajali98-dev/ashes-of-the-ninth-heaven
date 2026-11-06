@@ -79,7 +79,7 @@ Each merchant is a real account with its own stock and its own jade purse.
 | Granny Qiu | Ash Market Keeper | Ashen Prefecture | Buys almost anything, at low bids | Loyal to regulars |
 | Auntie Shi | Passage Vendor | Ashen Prefecture | Pills and talismans | Cautious |
 | Mu Xiao | Gate Smith of the Iron Court | Ashen Prefecture | Oathsteel Essence | Loyal to regulars |
-| Lu Yan | Cinder Apothecary | Cinder House | Cinder Essence | Greedy |
+| Lu Yan | Cinder Apothecary of Cinder House | Ashen Prefecture | Cinder Essence | Greedy |
 | Elder Ya | Salt Archivist | Salt Estuary | Frosttide Essence, Seal Jade | Cautious |
 | Black Bamboo | Mask Carver of the Veil | Hollow Theatre | Umbral Essence | Greedy |
 | Kuang Yi | Lotus Penitent | Lotus Vault | Verdant Essence | Loyal to regulars |
