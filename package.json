@@ -7,7 +7,17 @@
     "start": "node server.js",
     "test": "node --test",
     "test:browser": "node tests/browser-regression.mjs",
-    "test:performance": "node tests/performance-browser.mjs"
+    "test:performance": "node tests/performance-browser.mjs",
+    "contract:build": "node scripts/contract-build.mjs",
+    "contract:test": "cd contracts/items && cargo test",
+    "chain:deploy": "node scripts/chain-deploy.mjs",
+    "chain:smoke": "node scripts/chain-smoke.mjs",
+    "market:trace": "node scripts/gen-market-trace.mjs"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "near-api-js": "^7.4.0"
+  }
 }

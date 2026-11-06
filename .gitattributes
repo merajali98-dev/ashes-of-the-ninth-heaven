@@ -7,3 +7,4 @@
 *.ogg binary
 *.wav binary
 *.woff2 binary
+*.wasm binary
