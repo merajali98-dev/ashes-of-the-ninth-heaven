@@ -1,0 +1,893 @@
+{
+  "version": 1,
+  "sampleRate": 22050,
+  "format": "PCM16 mono WAV",
+  "cues": {
+    "cast-strike": {
+      "src": "assets/audio/cast-strike.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:strike",
+      "sourceClips": [
+        "rpg/knifeSlice"
+      ]
+    },
+    "cast-ward": {
+      "src": "assets/audio/cast-ward.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:ward",
+      "sourceClips": [
+        "impact/impactGlass_light_000"
+      ]
+    },
+    "cast-mantra": {
+      "src": "assets/audio/cast-mantra.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:mantra",
+      "sourceClips": []
+    },
+    "cast-remedy": {
+      "src": "assets/audio/cast-remedy.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:remedy",
+      "sourceClips": [
+        "rpg/cloth1"
+      ]
+    },
+    "cast-hex": {
+      "src": "assets/audio/cast-hex.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:hex",
+      "sourceClips": []
+    },
+    "cast-formation": {
+      "src": "assets/audio/cast-formation.wav",
+      "duration": 0.84,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:formation",
+      "sourceClips": [
+        "impact/impactBell_heavy_000"
+      ]
+    },
+    "cast-stance": {
+      "src": "assets/audio/cast-stance.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:stance",
+      "sourceClips": [
+        "rpg/drawKnife1"
+      ]
+    },
+    "cast-counter": {
+      "src": "assets/audio/cast-counter.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:counter",
+      "sourceClips": [
+        "rpg/drawKnife1",
+        "rpg/knifeSlice"
+      ]
+    },
+    "cast-pact": {
+      "src": "assets/audio/cast-pact.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:pact",
+      "sourceClips": []
+    },
+    "cast-ritual": {
+      "src": "assets/audio/cast-ritual.wav",
+      "duration": 0.84,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:ritual",
+      "sourceClips": [
+        "interface/click_002"
+      ]
+    },
+    "cast-transmute": {
+      "src": "assets/audio/cast-transmute.wav",
+      "duration": 0.64,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:transmute",
+      "sourceClips": [
+        "interface/glass_001"
+      ]
+    },
+    "cast-finisher": {
+      "src": "assets/audio/cast-finisher.wav",
+      "duration": 0.84,
+      "gain": 0.72,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cast:finisher",
+      "sourceClips": []
+    },
+    "impact-light": {
+      "src": "assets/audio/impact-light.wav",
+      "duration": 0.34,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "impact-light",
+      "sourceClips": [
+        "impact/impactPunch_medium_000"
+      ],
+      "variants": [
+        "assets/audio/impact-light.wav",
+        "assets/audio/impact-light-alternate.wav"
+      ]
+    },
+    "impact-heavy": {
+      "src": "assets/audio/impact-heavy.wav",
+      "duration": 0.569977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "impact-heavy",
+      "sourceClips": [
+        "impact/impactPunch_heavy_000"
+      ]
+    },
+    "blocked": {
+      "src": "assets/audio/blocked.wav",
+      "duration": 0.4,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "blocked",
+      "sourceClips": [
+        "impact/impactMetal_medium_000"
+      ]
+    },
+    "shield-break": {
+      "src": "assets/audio/shield-break.wav",
+      "duration": 0.68,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "shield-break",
+      "sourceClips": [
+        "impact/impactGlass_heavy_000"
+      ]
+    },
+    "heal": {
+      "src": "assets/audio/heal.wav",
+      "duration": 0.749977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "heal",
+      "sourceClips": []
+    },
+    "status": {
+      "src": "assets/audio/status.wav",
+      "duration": 0.52,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "status",
+      "sourceClips": []
+    },
+    "tick": {
+      "src": "assets/audio/tick.wav",
+      "duration": 0.3,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "tick",
+      "sourceClips": []
+    },
+    "cleanse": {
+      "src": "assets/audio/cleanse.wav",
+      "duration": 0.66,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "cleanse",
+      "sourceClips": []
+    },
+    "dispel": {
+      "src": "assets/audio/dispel.wav",
+      "duration": 0.589977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "dispel",
+      "sourceClips": [
+        "interface/glass_001"
+      ]
+    },
+    "recover": {
+      "src": "assets/audio/recover.wav",
+      "duration": 0.649977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "recover",
+      "sourceClips": []
+    },
+    "resonance": {
+      "src": "assets/audio/resonance.wav",
+      "duration": 1.149977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "resonance",
+      "sourceClips": []
+    },
+    "phase": {
+      "src": "assets/audio/phase.wav",
+      "duration": 1.149977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "phase",
+      "sourceClips": []
+    },
+    "ritual-resolve": {
+      "src": "assets/audio/ritual-resolve.wav",
+      "duration": 0.849977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "ritual-resolve",
+      "sourceClips": []
+    },
+    "pet-command": {
+      "src": "assets/audio/pet-command.wav",
+      "duration": 0.449977,
+      "gain": 0.7,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "pet-command",
+      "sourceClips": []
+    },
+    "ui-click": {
+      "src": "assets/audio/ui-click.wav",
+      "duration": 0.14,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "ui-click",
+      "sourceClips": [
+        "interface/click_001"
+      ],
+      "variants": [
+        "assets/audio/ui-click.wav",
+        "assets/audio/ui-click-alternate.wav"
+      ]
+    },
+    "ui-select": {
+      "src": "assets/audio/ui-select.wav",
+      "duration": 0.229977,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "ui-select",
+      "sourceClips": [
+        "interface/select_001"
+      ],
+      "variants": [
+        "assets/audio/ui-select.wav",
+        "assets/audio/ui-select-alternate.wav"
+      ]
+    },
+    "ui-open": {
+      "src": "assets/audio/ui-open.wav",
+      "duration": 0.28,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "ui-open",
+      "sourceClips": [
+        "interface/open_001"
+      ]
+    },
+    "ui-close": {
+      "src": "assets/audio/ui-close.wav",
+      "duration": 0.24,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "ui-close",
+      "sourceClips": [
+        "interface/close_001"
+      ]
+    },
+    "ui-error": {
+      "src": "assets/audio/ui-error.wav",
+      "duration": 0.278322,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "ui-error",
+      "sourceClips": [
+        "interface/error_001"
+      ]
+    },
+    "card-draw": {
+      "src": "assets/audio/card-draw.wav",
+      "duration": 0.229977,
+      "gain": 0.65,
+      "group": "combat",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "card-draw",
+      "sourceClips": [
+        "rpg/bookFlip1",
+        "rpg/cloth2"
+      ],
+      "variants": [
+        "assets/audio/card-draw.wav",
+        "assets/audio/card-draw-alternate.wav"
+      ]
+    },
+    "turn-end": {
+      "src": "assets/audio/turn-end.wav",
+      "duration": 0.4,
+      "gain": 0.65,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "turn-end",
+      "sourceClips": [
+        "rpg/bookClose"
+      ]
+    },
+    "turn-start": {
+      "src": "assets/audio/turn-start.wav",
+      "duration": 0.549977,
+      "gain": 0.65,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "turn-start",
+      "sourceClips": [
+        "rpg/bookOpen"
+      ]
+    },
+    "purchase": {
+      "src": "assets/audio/purchase.wav",
+      "duration": 0.549977,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "purchase",
+      "sourceClips": [
+        "rpg/handleCoins"
+      ]
+    },
+    "forge": {
+      "src": "assets/audio/forge.wav",
+      "duration": 0.8,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "forge",
+      "sourceClips": [
+        "impact/impactMining_000"
+      ]
+    },
+    "upgrade": {
+      "src": "assets/audio/upgrade.wav",
+      "duration": 0.849977,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "upgrade",
+      "sourceClips": [
+        "impact/impactMetal_light_000"
+      ]
+    },
+    "salvage": {
+      "src": "assets/audio/salvage.wav",
+      "duration": 0.62,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "salvage",
+      "sourceClips": [
+        "impact/impactGlass_light_000"
+      ]
+    },
+    "reward": {
+      "src": "assets/audio/reward.wav",
+      "duration": 0.9,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "reward",
+      "sourceClips": []
+    },
+    "deck-save": {
+      "src": "assets/audio/deck-save.wav",
+      "duration": 0.5,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "deck-save",
+      "sourceClips": [
+        "rpg/bookClose"
+      ]
+    },
+    "deck-equip": {
+      "src": "assets/audio/deck-equip.wav",
+      "duration": 0.549977,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 90,
+      "priority": 1,
+      "design": "deck-equip",
+      "sourceClips": [
+        "rpg/bookClose"
+      ]
+    },
+    "rest": {
+      "src": "assets/audio/rest.wav",
+      "duration": 1.049977,
+      "gain": 0.65,
+      "group": "ui",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "rest",
+      "sourceClips": []
+    },
+    "victory": {
+      "src": "assets/audio/victory.wav",
+      "duration": 1.7,
+      "gain": 0.65,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 4,
+      "design": "victory",
+      "sourceClips": []
+    },
+    "defeat": {
+      "src": "assets/audio/defeat.wav",
+      "duration": 1.349977,
+      "gain": 0.65,
+      "group": "combat",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "defeat",
+      "sourceClips": []
+    },
+    "sound-preview": {
+      "src": "assets/audio/sound-preview.wav",
+      "duration": 0.749977,
+      "gain": 0.65,
+      "group": "progression",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "sound-preview",
+      "sourceClips": []
+    },
+    "hero-layer": {
+      "src": "assets/audio/hero-layer.wav",
+      "duration": 1.1,
+      "gain": 0.8,
+      "group": "progression",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "hero-layer",
+      "sourceClips": []
+    },
+    "hero-realm": {
+      "src": "assets/audio/hero-realm.wav",
+      "duration": 2.7,
+      "gain": 0.8,
+      "group": "progression",
+      "cooldownMs": 120,
+      "priority": 4,
+      "design": "hero-realm",
+      "sourceClips": []
+    },
+    "pet-layer": {
+      "src": "assets/audio/pet-layer.wav",
+      "duration": 1.049977,
+      "gain": 0.8,
+      "group": "progression",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "pet-layer",
+      "sourceClips": []
+    },
+    "pet-hatch": {
+      "src": "assets/audio/pet-hatch.wav",
+      "duration": 2,
+      "gain": 0.8,
+      "group": "pets",
+      "cooldownMs": 120,
+      "priority": 4,
+      "design": "pet-hatch",
+      "sourceClips": [
+        "impact/impactGlass_light_000"
+      ]
+    },
+    "egg-crack": {
+      "src": "assets/audio/egg-crack.wav",
+      "duration": 0.449977,
+      "gain": 0.8,
+      "group": "pets",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "egg-crack",
+      "sourceClips": [
+        "impact/impactGlass_light_000"
+      ]
+    },
+    "pet-evolve": {
+      "src": "assets/audio/pet-evolve.wav",
+      "duration": 2.7,
+      "gain": 0.8,
+      "group": "progression",
+      "cooldownMs": 120,
+      "priority": 4,
+      "design": "pet-evolve",
+      "sourceClips": []
+    },
+    "pet-feed": {
+      "src": "assets/audio/pet-feed.wav",
+      "duration": 0.649977,
+      "gain": 0.8,
+      "group": "pets",
+      "cooldownMs": 120,
+      "priority": 2,
+      "design": "pet-feed",
+      "sourceClips": [
+        "rpg/bookFlip2"
+      ]
+    },
+    "pet-azure-dragon": {
+      "src": "assets/audio/pet-azure-dragon.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:azure-dragon",
+      "sourceClips": []
+    },
+    "pet-vermilion-phoenix": {
+      "src": "assets/audio/pet-vermilion-phoenix.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:vermilion-phoenix",
+      "sourceClips": []
+    },
+    "pet-white-tiger": {
+      "src": "assets/audio/pet-white-tiger.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:white-tiger",
+      "sourceClips": []
+    },
+    "pet-black-tortoise": {
+      "src": "assets/audio/pet-black-tortoise.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:black-tortoise",
+      "sourceClips": []
+    },
+    "pet-nine-tail-fox": {
+      "src": "assets/audio/pet-nine-tail-fox.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:nine-tail-fox",
+      "sourceClips": []
+    },
+    "pet-jade-qilin": {
+      "src": "assets/audio/pet-jade-qilin.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:jade-qilin",
+      "sourceClips": []
+    },
+    "pet-kun-peng": {
+      "src": "assets/audio/pet-kun-peng.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:kun-peng",
+      "sourceClips": []
+    },
+    "pet-thunder-serpent": {
+      "src": "assets/audio/pet-thunder-serpent.wav",
+      "duration": 1.22,
+      "gain": 0.55,
+      "group": "pets",
+      "cooldownMs": 1200,
+      "priority": 2,
+      "design": "voice:thunder-serpent",
+      "sourceClips": []
+    }
+  },
+  "sources": [
+    {
+      "id": "kenney-interface",
+      "author": "Kenney",
+      "title": "Interface Sounds",
+      "url": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseFile": "assets/audio/licenses/kenney-interface-CC0.txt"
+    },
+    {
+      "id": "kenney-impact",
+      "author": "Kenney",
+      "title": "Impact Sounds",
+      "url": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "licenseFile": "assets/audio/licenses/kenney-impact-CC0.txt"
+    },
+    {
+      "id": "kenney-rpg",
+      "author": "Kenney",
+      "title": "RPG Audio",
+      "url": "https://kenney.nl/assets/rpg-audio",
+      "license": "CC0-1.0",
+      "licenseFile": "assets/audio/licenses/kenney-rpg-CC0.txt"
+    },
+    {
+      "id": "original-dsp",
+      "author": "Ashes of the Ninth Heaven project",
+      "title": "Original procedural compositions and sound design",
+      "license": "LicenseRef-Project-Original",
+      "licenseFile": "assets/audio/licenses/original-dsp-NOTICE.txt"
+    }
+  ],
+  "audition": {
+    "src": "assets/audio/audition.wav",
+    "duration": 19.919909,
+    "sequence": [
+      "ui-select",
+      "card-draw",
+      "cast-strike",
+      "impact-heavy",
+      "cast-ward",
+      "blocked",
+      "shield-break",
+      "cast-hex",
+      "cast-ritual",
+      "cast-transmute",
+      "cast-finisher",
+      "impact-heavy",
+      "hero-layer",
+      "pet-azure-dragon",
+      "pet-vermilion-phoenix",
+      "pet-hatch",
+      "hero-realm"
+    ]
+  },
+  "sourceClips": [
+    {
+      "id": "interface/click_001",
+      "src": "assets/audio/source/interface/click_001.ogg",
+      "sha256": "ccfb7fa0cccdd9faec0eb16033c732b1e308d139d80f799161495d58f7adcdb9"
+    },
+    {
+      "id": "interface/click_002",
+      "src": "assets/audio/source/interface/click_002.ogg",
+      "sha256": "adcd1f4adc35f1b41bc1b5bbefeff7aa44f2f3f0d96d3199b544140c7c1e761c"
+    },
+    {
+      "id": "interface/select_001",
+      "src": "assets/audio/source/interface/select_001.ogg",
+      "sha256": "aec0c31ea934a35936ae0d2ab8fac8123c93aa5647f935853a58dbaf90278b7a"
+    },
+    {
+      "id": "interface/open_001",
+      "src": "assets/audio/source/interface/open_001.ogg",
+      "sha256": "a27c6bb0df7da1e6af5dd5937593c98bc58b6e513f42fe6a3254cd6a6949c648"
+    },
+    {
+      "id": "interface/close_001",
+      "src": "assets/audio/source/interface/close_001.ogg",
+      "sha256": "44af8249b933e0fd35ec957a638bb1a0b01f85b53fbe9674bf77bd3ca3168ef4"
+    },
+    {
+      "id": "interface/confirmation_001",
+      "src": "assets/audio/source/interface/confirmation_001.ogg",
+      "sha256": "063564703b6094d70718a3e787a55cc9141611e4ecd6b6637f8828f79b4a8c3a"
+    },
+    {
+      "id": "interface/error_001",
+      "src": "assets/audio/source/interface/error_001.ogg",
+      "sha256": "46e67425d16339772e8d328fb36a49426c9467418686e11beeb71ff84b0f6433"
+    },
+    {
+      "id": "interface/glass_001",
+      "src": "assets/audio/source/interface/glass_001.ogg",
+      "sha256": "183eebee20eb0a532b0b85104d139cbf2673eb66d95c3cc733ac9ea98362e7e8"
+    },
+    {
+      "id": "interface/pluck_001",
+      "src": "assets/audio/source/interface/pluck_001.ogg",
+      "sha256": "be97ec4893a02d6eccfb678daa76c83e34cb2583b834ec2593d2641def739fa4"
+    },
+    {
+      "id": "interface/switch_001",
+      "src": "assets/audio/source/interface/switch_001.ogg",
+      "sha256": "3b74efad87f1e69dbd1d05c5ad952ab90859b5a3d11da6ec5bd79b4f03b42afa"
+    },
+    {
+      "id": "impact/impactBell_heavy_000",
+      "src": "assets/audio/source/impact/impactBell_heavy_000.ogg",
+      "sha256": "94b8bb5f2d43ab65e4bcc32b28562416e9bc2c51d9fd4be1e333660ee52f977f"
+    },
+    {
+      "id": "impact/impactGlass_heavy_000",
+      "src": "assets/audio/source/impact/impactGlass_heavy_000.ogg",
+      "sha256": "b44b39a940e8948e74b9bd3776bff980df43cf220abdaf0d467dc4c43c0244a5"
+    },
+    {
+      "id": "impact/impactGlass_light_000",
+      "src": "assets/audio/source/impact/impactGlass_light_000.ogg",
+      "sha256": "d750cf88097d0c3e69920e6e14496e1444e1a9da01aa4cca8f5ec8cb44c57b4f"
+    },
+    {
+      "id": "impact/impactMetal_light_000",
+      "src": "assets/audio/source/impact/impactMetal_light_000.ogg",
+      "sha256": "33b5e6e37c6e9d54e07bf5a89b12c76e879f40c1ea83cdd82714df1d6f9fec6d"
+    },
+    {
+      "id": "impact/impactMetal_medium_000",
+      "src": "assets/audio/source/impact/impactMetal_medium_000.ogg",
+      "sha256": "a96f879fec0864a8938e0c745b6996a6c5679c16a234ce31a01cc995e8401003"
+    },
+    {
+      "id": "impact/impactPunch_medium_000",
+      "src": "assets/audio/source/impact/impactPunch_medium_000.ogg",
+      "sha256": "486988aa2d6440ffc4c62a0e8ccf3c23673ba84424bd4723378d451b7255eb5c"
+    },
+    {
+      "id": "impact/impactPunch_heavy_000",
+      "src": "assets/audio/source/impact/impactPunch_heavy_000.ogg",
+      "sha256": "b33a8f14068aec24ec69ba85e5e87fdc41228975f6a1a3e44a6e7d6fc3d9f8d8"
+    },
+    {
+      "id": "impact/impactWood_light_000",
+      "src": "assets/audio/source/impact/impactWood_light_000.ogg",
+      "sha256": "eb45e35b4bed784d3f120de4afec4b0d6ac09d9e143cce8cfcb7d739e1b1f3c3"
+    },
+    {
+      "id": "impact/impactMining_000",
+      "src": "assets/audio/source/impact/impactMining_000.ogg",
+      "sha256": "36b4ea107222d073c67ca64dde26944975609202d5090b2f2021213c1a7e35cd"
+    },
+    {
+      "id": "rpg/bookFlip1",
+      "src": "assets/audio/source/rpg/bookFlip1.ogg",
+      "sha256": "fa81ac2fedc8c641661b87e349630a36c9800e795e0c800e029214efdbe26a7d"
+    },
+    {
+      "id": "rpg/bookFlip2",
+      "src": "assets/audio/source/rpg/bookFlip2.ogg",
+      "sha256": "3409042acbfaebc24c1a6327dc073e36f9250841712e96c5040da566a97df73c"
+    },
+    {
+      "id": "rpg/bookOpen",
+      "src": "assets/audio/source/rpg/bookOpen.ogg",
+      "sha256": "953390534377222bee89ac8cd9e60a58fdc037c71a4d7c18c43cd647c7f34ba8"
+    },
+    {
+      "id": "rpg/bookClose",
+      "src": "assets/audio/source/rpg/bookClose.ogg",
+      "sha256": "81e976532565f4372abd14e83d2684195fa548d0a28d345de221e56052454f32"
+    },
+    {
+      "id": "rpg/cloth1",
+      "src": "assets/audio/source/rpg/cloth1.ogg",
+      "sha256": "ddb93a3671233f95da0e0b10367f082f7eb42fa6caaddcf776410aa8833c747d"
+    },
+    {
+      "id": "rpg/cloth2",
+      "src": "assets/audio/source/rpg/cloth2.ogg",
+      "sha256": "8a7451193c38bc05483aec25dd193e163a15d44cf7fff04ac7912573231b0201"
+    },
+    {
+      "id": "rpg/drawKnife1",
+      "src": "assets/audio/source/rpg/drawKnife1.ogg",
+      "sha256": "276403e72c3b71c47bc24db3083970c23f8e5551ffa78f436f83483c56f3f0bb"
+    },
+    {
+      "id": "rpg/knifeSlice",
+      "src": "assets/audio/source/rpg/knifeSlice.ogg",
+      "sha256": "4cd96dc630bed9840c15f1dd2306da2cc56a4da26a5d3f1a03c5a7265ac5e54f"
+    },
+    {
+      "id": "rpg/handleCoins",
+      "src": "assets/audio/source/rpg/handleCoins.ogg",
+      "sha256": "8a91f969e932df709df80ee124d86a51389eed9b67f22e5e716bc2bbf60d8dab"
+    },
+    {
+      "id": "rpg/metalClick",
+      "src": "assets/audio/source/rpg/metalClick.ogg",
+      "sha256": "9851a69d0c613e13bceef08060ecc4148f098ef487927cbebe270d642398a3b3"
+    },
+    {
+      "id": "rpg/chop",
+      "src": "assets/audio/source/rpg/chop.ogg",
+      "sha256": "d00c2b3c9fff07e376145c8c8c45c90e5084ec192f6ce0387db233f7b86f1486"
+    }
+  ]
+}

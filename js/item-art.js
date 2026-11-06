@@ -1,0 +1,81 @@
+import { relicArt } from './art.js';
+
+export const illustratedItems = new Set([
+  'pilgrims-staff', 'sootcloth-coat', 'walkers-shoes', 'jade-prayer-beads',
+  'threshold-key', 'windproof-wick', 'charcoal-scrip', 'first-sky-reliquary',
+  'ninth-heaven-fragment', 'roadside-bitter-pill', 'untaxed-breath', 'paper-talisman',
+  'dawn-seal', 'roadside-hemp', 'writ-knife', 'bailiffs-hinge-sword',
+  'oath-severer', 'mu-qings-broken-verdict', 'gatekeepers-vest', 'stone-vow-greaves',
+  'recusal-lamellar', 'court-hinge', 'split-seal-pendant', 'gritbound-thumb-ring',
+  'unfiled-scabbard', 'single-witness-plaque', 'captains-lintel', 'six-handed-vow',
+  'threshold-strip', 'counterseal', 'rejected-writ', 'rust-root-pellet',
+  'hinge-oil-draught', 'tempered-heart-pearl', 'hinge-iron', 'oath-ink',
+  'iron-thread', 'witness-grit', 'unstamped-jade', 'coal-tongs',
+  'kiln-needle', 'veilfire-sabre', 'mourning-sun', 'kiln-apron',
+  'red-veil-robes', 'cremation-coat', 'soot-ampoule', 'sinders-thimble',
+  'brazier-beads', 'lidded-coal-cup', 'furnace-rattle', 'wedding-crucible',
+  'jar-of-the-last-warmth', 'brazier-spark', 'copper-wick-seal', 'seal-of-closed-embers',
+  'smokeberry-pearl', 'ember-heart-syrup', 'second-firing-pill', 'funeral-ash',
+  'kiln-copper', 'fireglass', 'cinder-resin', 'ash-plum-pit',
+  'quarantine-lancet', 'brine-needle', 'shoalbone-oar', 'the-drowned-ferryman',
+  'ferry-sash', 'concord-shouldercloth', 'quarantine-coat', 'mother-of-tide',
+  'surgeons-horn', 'ferry-chain-anklet', 'ceramic-scale', 'cord-of-the-returned',
+  'register-in-shell', 'anchor-of-borrowed-names', 'sluice-mark', 'talisman-of-low-water',
+  'estuary-levee-knot', 'pearl-salt-pill', 'reed-lung-potion', 'drowned-moon-elixir',
+  'pearl-grit', 'estuary-bone', 'shoal-salt', 'drowned-coin',
+  'deepwater-glaze', 'shroud-shears', 'stagehands-hook', 'eulogy-kris',
+  'black-bamboos-last-mouth', 'rehearsal-shroud', 'velvet-ushers-wrap', 'funeral-understudys-robe',
+  'understudys-brooch', 'folded-throat-mask', 'belltower-hook', 'ushers-ticket',
+  'bride-bell-clapper', 'keeper-of-faces', 'veil-of-the-last-audience', 'torn-playbill',
+  'casket-invitation', 'eight-panel-curtain', 'rehearsal-lozenge', 'unseen-hour-draught',
+  'blank-face-pearl', 'wake-thread', 'curtain-silk', 'black-bamboo',
+  'stage-soot', 'mirror-foil', 'prayer-rod', 'clapper-staff',
+  'sutra-mallet', 'yanxus-empty-hand', 'ash-novices-kasaya', 'mantle-of-witness',
+  'bronze-petal-harness', 'stone-incense', 'pillow-hall-censer', 'abbots-lower-beads',
+  'empty-sutra-slip', 'ceremony-bowl', 'bronze-oath-wheel', 'bowl-of-the-unwritten-sea',
+  'breathing-incense', 'ten-breath-seal', 'unburied-verse', 'rice-heart-pill',
+  'clear-vein-tea', 'bronze-lotus-kernel', 'prayer-jade', 'clapper-bronze',
+  'sutra-velum', 'snow-lotus-stem', 'tears-of-the-first-monk', 'spare-pike',
+  'signal-fork', 'rookery-lightning-rod', 'lei-hans-far-tower-spear', 'crosswind-vest',
+  'rope-guard-mantle', 'garrison-thundercoat', 'cable-sleeve', 'courier-pin',
+  'captains-weather-knot', 'split-signal-bell', 'far-tower-key', 'garrison-grounding-wheel',
+  'seal-of-seven-valleys', 'blue-route-slip', 'signal-flare-strip', 'thunder-without-a-cloud',
+  'copper-tongue-drop', 'wire-runner-powder', 'meridian-spark-pill', 'weathered-wire',
+  'brass-feather', 'storm-glass', 'cable-resin', 'blue-cliff-mica',
+  'brass-pointer', 'comet-quill', 'eclipse-transit-blade', 'sword-of-the-vacant-meridian',
+  'almanac-jacket', 'silent-transit-robe', 'coat-of-turning-worlds', 'second-hand-cuff',
+  'clockmakers-tooth', 'brass-vacancy-ring', 'loose-orrery-weight', 'blank-brass-ephemeris',
+  'almanac-of-empty-squares', 'gold-circuit', 'single-star-stamp', 'meridian-objection',
+  'mandate-of-the-new-dawn', 'midnight-ink-pellet', 'uncounted-hour-tonic', 'polaris-pearl',
+  'meridian-brass', 'almanac-fiber', 'clock-shard', 'eclipse-ink',
+  'meteor-pith', 'field-notes-on-bitter-roots', 'manual-of-swept-steps', 'the-jar-with-two-mouths',
+  'facing-weather-from-the-road', 'seven-mile-fight-book', 'register-of-witness-blades', 'keepers-hinge-lesson',
+  'forms-of-iron-petition', 'order-for-removal-of-a-bailiff', 'the-smiths-spine-chart', 'sermon-on-the-sound-of-iron',
+  'hundred-hinge-diagram', 'the-soot-needle-record', 'ash-basket-ledger', 'a-careful-tip-of-the-brazier',
+  'on-the-making-of-glass-lungs', 'kiln-raised-in-spite', 'the-houses-first-firing', 'instructions-for-a-coal-heart',
+  'practical-mudbank-traps', 'a-ferry-guide-to-the-reedbed', 'wire-runners-primer', 'the-couriers-fare-table',
+  'keeping-the-starfallen-brush', 'first-oath-handscroll', 'guard-at-the-open-gate', 'where-the-seal-splits',
+  'practice-with-one-coal', 'kiln-tenders-first-layer', 'household-coal-ledger', 'air-at-the-mouth-of-the-river',
+  'the-ferrymans-return-register', 'hinges-of-a-borrowed-face', 'black-bamboos-public-statement', 'a-palmful-of-jade-dust',
+  'the-empty-page-between-verses', 'how-to-plant-a-sutra', 'taking-testimony-by-hand', 'ten-thousand-voices-in-one-room',
+  'the-crossing-before-the-storm', 'flight-of-the-far-tower-spear', 'one-fixed-point-of-testimony',
+]);
+
+export function itemArt(item) {
+  return illustratedItems.has(item.id) ? 'assets/art/item-' + item.id + '.webp' : 'assets/art/relic-' + relicArt(item) + '.webp';
+}
+
+export const squareIconItems = new Set([
+  'first-sky-reliquary', 'ninth-heaven-fragment', 'untaxed-breath', 'mu-qings-broken-verdict',
+  'six-handed-vow', 'mourning-sun', 'jar-of-the-last-warmth', 'the-drowned-ferryman',
+  'anchor-of-borrowed-names', 'black-bamboos-last-mouth', 'veil-of-the-last-audience', 'yanxus-empty-hand',
+  'bowl-of-the-unwritten-sea', 'lei-hans-far-tower-spear', 'seal-of-seven-valleys', 'sword-of-the-vacant-meridian',
+  'gold-circuit', 'flight-of-the-far-tower-spear', 'pilgrims-staff', 'sootcloth-coat',
+  'jade-prayer-beads', 'roadside-bitter-pill', 'paper-talisman', 'roadside-hemp',
+  'threshold-key', 'windproof-wick', 'charcoal-scrip', 'court-hinge',
+  'bride-bell-clapper', 'dawn-seal', 'walkers-shoes', 'writ-knife',
+]);
+
+export function itemIcon(item) {
+  return squareIconItems.has(item.id) ? 'assets/art/icon-' + item.id + '.webp' : itemArt(item);
+}

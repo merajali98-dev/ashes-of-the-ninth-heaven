@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101017">
+  <meta name="description" content="A dark xianxia deckbuilding RPG. Gather forbidden techniques, survive tribulations, and uncover what brought down the Ninth Heaven.">
+  <title>Ashes of the Ninth Heaven</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/game.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <link rel="stylesheet" href="css/game-board.css">
+  <link rel="stylesheet" href="css/card-frames.css">
+  <link rel="stylesheet" href="css/workshop.css">
+  <link rel="stylesheet" href="css/cultivation.css">
+  <link rel="stylesheet" href="css/pets.css">
+  <link rel="stylesheet" href="css/progression-fx.css">
+  <link rel="stylesheet" href="css/audio.css">
+  <link rel="stylesheet" href="css/treasury.css">
+</head>
+<body>
+  <svg class="card-frame-definitions" width="0" height="0" aria-hidden="true">
+    <defs>
+      <clipPath id="jade-tablet" clipPathUnits="objectBoundingBox">
+        <path d="M .075 0 L .22 0 Q .255 0 .28 .025 Q .30 .045 .35 .045 L .65 .045 Q .7 .045 .72 .025 Q .745 0 .78 0 L .925 0 Q 1 0 1 .05 L 1 .12 Q 1 .155 .975 .17 L .975 .83 Q 1 .845 1 .88 L 1 .95 Q 1 1 .925 1 L .78 1 Q .745 1 .72 .975 Q .7 .955 .65 .955 L .35 .955 Q .3 .955 .28 .975 Q .255 1 .22 1 L .075 1 Q 0 1 0 .95 L 0 .88 Q 0 .845 .025 .83 L .025 .17 Q 0 .155 0 .12 L 0 .05 Q 0 0 .075 0 Z"/>
+      </clipPath>
+    </defs>
+  </svg>
+  <a class="skip-link" href="#screen">Skip to game content</a>
+  <div id="app" class="app"></div>
+  <div id="battle-fx" aria-hidden="true"></div>
+  <div id="battle-announcer" class="sr-only" role="status" aria-atomic="true"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="dialog" class="dialog" aria-labelledby="dialog-title"></dialog>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

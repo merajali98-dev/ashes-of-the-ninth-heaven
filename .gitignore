@@ -1,0 +1,21 @@
+# Internal hackathon planning (never published)
+internal/
+
+# Secrets and local state
+.env
+.env.*
+!.env.example
+server/data/
+data/
+
+# QA scratch (screenshots, browser-test output)
+tmp/
+
+# Dependencies and builds
+node_modules/
+contracts/*/target/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

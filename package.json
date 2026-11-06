@@ -1,0 +1,13 @@
+{
+  "name": "ashes-of-the-ninth-heaven",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "test:browser": "node tests/browser-regression.mjs",
+    "test:performance": "node tests/performance-browser.mjs"
+  },
+  "engines": { "node": ">=22" }
+}

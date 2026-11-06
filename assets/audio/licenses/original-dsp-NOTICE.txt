@@ -1,0 +1,4 @@
+Original sound design and deterministic DSP compositions created for the Ashes of the Ninth Heaven project.
+The project owner controls licensing and distribution of these original contributions. No public-domain dedication of the project owner's original work is made here.
+Kenney Foley components are CC0 1.0 Universal and retain the separately supplied notices.
+No AI audio generation service, proprietary sample library, voice actor recording, or real animal recording was used.

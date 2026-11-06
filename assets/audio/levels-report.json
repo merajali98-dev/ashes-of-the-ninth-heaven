@@ -1,0 +1,456 @@
+{
+  "sampleRate": 22050,
+  "cues": [
+    {
+      "id": "cast-strike",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.15443128139952134,
+      "sha256": "560d90b410149e2ff07c58a8cd95d7b029d552f1855ed0bb11898018efc3fe5f"
+    },
+    {
+      "id": "cast-ward",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.18028321707914483,
+      "sha256": "5948fa0a5aa6ac21bc8cfc33d259e6d916cce41acc9a60b19f3086c7c9760a99"
+    },
+    {
+      "id": "cast-mantra",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.16419766369363986,
+      "sha256": "a1ffc675650186d5368afcad3234cb73abf92b1465bee9a00b3bcf75a2337d75"
+    },
+    {
+      "id": "cast-remedy",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.1540541679882897,
+      "sha256": "1144179b3e277c689e2ece781d0a44e95d188fd661786712a6029002f3212044"
+    },
+    {
+      "id": "cast-hex",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.20811367875112735,
+      "sha256": "9d422128c7af16eabb28e126d61aac66265a42a7bd3aba8eb6f21c797e0e159f"
+    },
+    {
+      "id": "cast-formation",
+      "duration": 0.84,
+      "peak": 0.84,
+      "rms": 0.16601280738949992,
+      "sha256": "dfdb8ca99d0331a0e72f76587486b16755672e3e5e41868a11eb3cb93eeb51f8"
+    },
+    {
+      "id": "cast-stance",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.150914539878179,
+      "sha256": "f007d9a187ee2e0f4339c410892fa35acdaacbf5e4116b7fe7bcf80e1a618e56"
+    },
+    {
+      "id": "cast-counter",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.1432521067358563,
+      "sha256": "047a8691fe7c71df054241709c2eb89c8394d3bb00dcd9c951f67aee36cbf42b"
+    },
+    {
+      "id": "cast-pact",
+      "duration": 0.64,
+      "peak": 0.8399999999999999,
+      "rms": 0.17588720981692646,
+      "sha256": "30cae7ddbd655d6a9a282561e4c19fa31fe1974b43f2180f1f90d31845557a04"
+    },
+    {
+      "id": "cast-ritual",
+      "duration": 0.84,
+      "peak": 0.84,
+      "rms": 0.14651553256967498,
+      "sha256": "e0c8d324ffff7bf50fd5dd0eeb1ebdb2ff8fa89f7e9210547358fd33a9a22dbf"
+    },
+    {
+      "id": "cast-transmute",
+      "duration": 0.64,
+      "peak": 0.84,
+      "rms": 0.15269724516647512,
+      "sha256": "05e0edddd630044289b873682106b7d9aea15a9a1cca70005d5e6306c2538856"
+    },
+    {
+      "id": "cast-finisher",
+      "duration": 0.84,
+      "peak": 0.84,
+      "rms": 0.1958406353879806,
+      "sha256": "d897ba09c69dbba74ac22e37508aa1fbb97e1f8ccd1753b263d72cee260acb19"
+    },
+    {
+      "id": "impact-light",
+      "duration": 0.34,
+      "peak": 0.8400000000000001,
+      "rms": 0.1764276032518693,
+      "sha256": "17d48581a6d4b39dd953fcbf6a78b980bd6ec974dbbda890a2293aa3d5ead489"
+    },
+    {
+      "id": "impact-heavy",
+      "duration": 0.5699773242630386,
+      "peak": 0.84,
+      "rms": 0.17927902969357992,
+      "sha256": "3e3a3e701109a246a8e39b23065026de8b73bedcaada51e9a93c2b5bd20c9367"
+    },
+    {
+      "id": "blocked",
+      "duration": 0.4,
+      "peak": 0.84,
+      "rms": 0.11733117921705098,
+      "sha256": "94463c50d2fd480dc238c445c921892280976e2e892781f65a56e3bd66a94871"
+    },
+    {
+      "id": "shield-break",
+      "duration": 0.68,
+      "peak": 0.84,
+      "rms": 0.05639695477999292,
+      "sha256": "5c6184ecc47218f906bd33b6e9064b34a28809702078f8070fd49bfe7ed3f9f7"
+    },
+    {
+      "id": "heal",
+      "duration": 0.7499773242630385,
+      "peak": 0.84,
+      "rms": 0.16680286234150798,
+      "sha256": "58fb0ecfd86333fcf4a878ea5a36e11b0fadd9a760787c0931c6cbba7a02fcf3"
+    },
+    {
+      "id": "status",
+      "duration": 0.52,
+      "peak": 0.84,
+      "rms": 0.19998875308641229,
+      "sha256": "9bfc822078061b6b63f53cfa1da3fd24d8eff96d244816cb334ddab75bc36f8c"
+    },
+    {
+      "id": "tick",
+      "duration": 0.3,
+      "peak": 0.84,
+      "rms": 0.21003049688758998,
+      "sha256": "ea70c564903d1493025a4e5ac8a103bb83fa077f460e5d5260656fec5b4442c8"
+    },
+    {
+      "id": "cleanse",
+      "duration": 0.66,
+      "peak": 0.84,
+      "rms": 0.17528848887501544,
+      "sha256": "2dfecd46d0e2aa7b1c85871b029fc30d33480b29fc03706eb08d753d671c6041"
+    },
+    {
+      "id": "dispel",
+      "duration": 0.5899773242630385,
+      "peak": 0.84,
+      "rms": 0.18193142089863962,
+      "sha256": "eca4e98663a1ac344f9d79f18868d0f2f81e302fc39e03f6181a8cecd658a558"
+    },
+    {
+      "id": "recover",
+      "duration": 0.6499773242630386,
+      "peak": 0.84,
+      "rms": 0.15814322622525856,
+      "sha256": "1b73fb765e551b501bd3b35ab4ef33cb910794e00141faaa91cebfd7d58d36f0"
+    },
+    {
+      "id": "resonance",
+      "duration": 1.1499773242630384,
+      "peak": 0.84,
+      "rms": 0.1621861352232215,
+      "sha256": "2ac3823703c8c0c17e1e71506aa6603c5a47ae922383041bfc2a50d6d39803a2"
+    },
+    {
+      "id": "phase",
+      "duration": 1.1499773242630384,
+      "peak": 0.84,
+      "rms": 0.16415822022642523,
+      "sha256": "364c4ef6509e62d0ae5279cc688371485056baf4a4dc3e726c3506d453a40b52"
+    },
+    {
+      "id": "ritual-resolve",
+      "duration": 0.8499773242630385,
+      "peak": 0.84,
+      "rms": 0.19015500760532086,
+      "sha256": "3d944e591282d405456d75ea62480386dd848cb862aca16a62cc8163ec6d3638"
+    },
+    {
+      "id": "pet-command",
+      "duration": 0.44997732426303855,
+      "peak": 0.84,
+      "rms": 0.16831608264022258,
+      "sha256": "45a54842e6b944dab7d4017b7542401c89ed6dac646f49bc6f03dcf33ddc44be"
+    },
+    {
+      "id": "ui-click",
+      "duration": 0.14,
+      "peak": 0.74,
+      "rms": 0.05185243805503716,
+      "sha256": "f55f3ee21bc8fd1b362ab63fa9c1d0b6cfc489c669e5f157f6e2c36ef9c99740"
+    },
+    {
+      "id": "ui-select",
+      "duration": 0.22997732426303855,
+      "peak": 0.74,
+      "rms": 0.06091684618365031,
+      "sha256": "825c061123a27f60a9b11ac9f7ae89ff16fdbde9cbd659937f6b41e40b8ad875"
+    },
+    {
+      "id": "ui-open",
+      "duration": 0.28,
+      "peak": 0.74,
+      "rms": 0.14312946793221476,
+      "sha256": "f65bfa07b27be02bbd32b444ea6385f94431bc397848fa6be67b57ce2eb0d816"
+    },
+    {
+      "id": "ui-close",
+      "duration": 0.24,
+      "peak": 0.74,
+      "rms": 0.1514108443930013,
+      "sha256": "1976a9609073e5fe3a75754ccd106fc9150d3a990d3987625b2845c7e215e75a"
+    },
+    {
+      "id": "ui-error",
+      "duration": 0.2783219954648526,
+      "peak": 0.74,
+      "rms": 0.09307394904262543,
+      "sha256": "673b3ad17374a3039db07620b4993824f494edb2f1c60505db52000f85c48b84"
+    },
+    {
+      "id": "card-draw",
+      "duration": 0.22997732426303855,
+      "peak": 0.74,
+      "rms": 0.08886673453443979,
+      "sha256": "00df45bf6c079c02233520585709c4d6b510ef9e9ecc2bbe1b6788dbe0f20ff9"
+    },
+    {
+      "id": "turn-end",
+      "duration": 0.4,
+      "peak": 0.84,
+      "rms": 0.11745971864271304,
+      "sha256": "04895258627d445f5491d732599fd705acd793649389f4a2153c497147a9b53a"
+    },
+    {
+      "id": "turn-start",
+      "duration": 0.5499773242630386,
+      "peak": 0.84,
+      "rms": 0.1648113512404133,
+      "sha256": "42a80b2f1f55859a6f40b1f8dd5ddfc1c0c42a6c8a96972a03b3582e530a7fdf"
+    },
+    {
+      "id": "purchase",
+      "duration": 0.5499773242630386,
+      "peak": 0.74,
+      "rms": 0.06577238196971298,
+      "sha256": "835326520e0750d7e12381f14ec47c3326dc6e1051c25d8a5b8c8f536ca82ad1"
+    },
+    {
+      "id": "forge",
+      "duration": 0.8,
+      "peak": 0.84,
+      "rms": 0.18261413144392558,
+      "sha256": "a7bb38a143ed83204e981bc65ad3a24063384db74e4c0c15a0cbf41488bba085"
+    },
+    {
+      "id": "upgrade",
+      "duration": 0.8499773242630385,
+      "peak": 0.84,
+      "rms": 0.14731387105671886,
+      "sha256": "be8856971a2ccb46bb026e0400bb139ed180026b98e9449d6f97e1b5e935afed"
+    },
+    {
+      "id": "salvage",
+      "duration": 0.62,
+      "peak": 0.84,
+      "rms": 0.16629814172171084,
+      "sha256": "84866c89b39938673744cd78a1e47278a78e0d874a3c41f4c1d797fe9b8c391a"
+    },
+    {
+      "id": "reward",
+      "duration": 0.9,
+      "peak": 0.84,
+      "rms": 0.2285412498949322,
+      "sha256": "6a8bb711742dcfd41d907c8e9d4202820d76dd218f726955e13391b6278c2b3f"
+    },
+    {
+      "id": "deck-save",
+      "duration": 0.5,
+      "peak": 0.74,
+      "rms": 0.10965659129664374,
+      "sha256": "0584dfbde94c00b237af36999a808d6fc50e5a97a637eac2e941dd97d329b6da"
+    },
+    {
+      "id": "deck-equip",
+      "duration": 0.5499773242630386,
+      "peak": 0.74,
+      "rms": 0.11655456126309269,
+      "sha256": "e563a247cd51d40ca7eef3f8ec02099a77293be5ac9220eb4a3b071cfe203bd2"
+    },
+    {
+      "id": "rest",
+      "duration": 1.0499773242630386,
+      "peak": 0.84,
+      "rms": 0.22172368828044345,
+      "sha256": "b2580a2d02f002adcae14f4b55e919b903ee06f489a48fb8dc19d04426438eeb"
+    },
+    {
+      "id": "victory",
+      "duration": 1.7,
+      "peak": 0.84,
+      "rms": 0.18160355447951806,
+      "sha256": "2c16abd705453914a05fdef674cab2356302495553c90eeaf806467f6091e457"
+    },
+    {
+      "id": "defeat",
+      "duration": 1.3499773242630386,
+      "peak": 0.84,
+      "rms": 0.18702095516166536,
+      "sha256": "e7fbc7e97f2ea780c42cf2ed8dbd5eeef358e40cbd88fbd0468432c1620d88fc"
+    },
+    {
+      "id": "sound-preview",
+      "duration": 0.7499773242630385,
+      "peak": 0.84,
+      "rms": 0.1984220962458225,
+      "sha256": "ec45e6feb7954bc8056eb54777ac3418f6ff7a783736fb5f7fc86a4f3f2b5674"
+    },
+    {
+      "id": "hero-layer",
+      "duration": 1.1,
+      "peak": 0.84,
+      "rms": 0.14872585426152604,
+      "sha256": "968ffcb770a9314dc4beb2536cf441725a04b1ebf2e915b51217a0b8770fc8bc"
+    },
+    {
+      "id": "hero-realm",
+      "duration": 2.7,
+      "peak": 0.84,
+      "rms": 0.17049364125857394,
+      "sha256": "9b94b7d1d11ab9c73e9fe57b00b3c32ac3fd147d706c7a75adf25deb5337e362"
+    },
+    {
+      "id": "pet-layer",
+      "duration": 1.0499773242630386,
+      "peak": 0.8,
+      "rms": 0.1622656923165963,
+      "sha256": "a7e08e0d2f9e43169a7f8d540ab875c3fb5f164a27c14b3e2b4578d5676659b1"
+    },
+    {
+      "id": "pet-hatch",
+      "duration": 2.0,
+      "peak": 0.8,
+      "rms": 0.18072255227723702,
+      "sha256": "f9dd2f62f6525dab9735c3775831b73dfc3a2040da2645804cedc72ca282ce98"
+    },
+    {
+      "id": "egg-crack",
+      "duration": 0.44997732426303855,
+      "peak": 0.8,
+      "rms": 0.06808412849861037,
+      "sha256": "a17f2d7712fed83350828d5b4b50551203c12ee511163ff9f87f4abae904615d"
+    },
+    {
+      "id": "pet-evolve",
+      "duration": 2.7,
+      "peak": 0.7999999999999999,
+      "rms": 0.16982012247688985,
+      "sha256": "189916569f2632e209a1ff4259499709ed2c02278f64b1decc01419be8a59c84"
+    },
+    {
+      "id": "pet-feed",
+      "duration": 0.6499773242630386,
+      "peak": 0.8,
+      "rms": 0.14902320586545373,
+      "sha256": "91308e6bfd05c61eda8818f5c9fd75c228665ef1c517d3942573d34506a7b7ae"
+    },
+    {
+      "id": "pet-azure-dragon",
+      "duration": 1.22,
+      "peak": 0.8,
+      "rms": 0.2945074491669428,
+      "sha256": "05741953888bc306b842811e9a6cce799fe757ca70002e570c737104b00b7b71"
+    },
+    {
+      "id": "pet-vermilion-phoenix",
+      "duration": 1.22,
+      "peak": 0.7999999999999999,
+      "rms": 0.23374314061632498,
+      "sha256": "ba580191e2a1442c226a2160dfef8fca8aa5d0d911a17c3ef886dc61e78bdfc1"
+    },
+    {
+      "id": "pet-white-tiger",
+      "duration": 1.22,
+      "peak": 0.8,
+      "rms": 0.2542086515768253,
+      "sha256": "c6f481d2850bdbefe20aa183cc2bbec558eab50563d922923d3cc2a2816a80c9"
+    },
+    {
+      "id": "pet-black-tortoise",
+      "duration": 1.22,
+      "peak": 0.8,
+      "rms": 0.25449711401623365,
+      "sha256": "e083a44edaf4ba3c4dfc157435b6425ae92136ec75d133dd05a7e84bdeba6a48"
+    },
+    {
+      "id": "pet-nine-tail-fox",
+      "duration": 1.22,
+      "peak": 0.8,
+      "rms": 0.12960150184572913,
+      "sha256": "56acacc6bf0148296b65b2f6ec940c64afcf52dd5dc1601ad6269d55f468a849"
+    },
+    {
+      "id": "pet-jade-qilin",
+      "duration": 1.22,
+      "peak": 0.7999999999999999,
+      "rms": 0.15113237638833046,
+      "sha256": "4c2f18bd436388500362d39f15b5c9df5817919451e61c7356727a9daeac6648"
+    },
+    {
+      "id": "pet-kun-peng",
+      "duration": 1.22,
+      "peak": 0.8,
+      "rms": 0.2827139650954161,
+      "sha256": "55b796228c6564417f90b36dfd97b71a51e551d0d6a23e2d463f5494628208f9"
+    },
+    {
+      "id": "pet-thunder-serpent",
+      "duration": 1.22,
+      "peak": 0.8,
+      "rms": 0.17349373007562424,
+      "sha256": "370b458ae23d19e7cef084a739c4b2a4f2392b406677a6a661e89ce7591a0652"
+    },
+    {
+      "id": "ui-click-alternate",
+      "duration": 0.14,
+      "peak": 0.74,
+      "rms": 0.055816074052267774,
+      "sha256": "85f1e6c137ccef6f297a0a0aa06b974c5140ec0d27536c5568bdbabe89da9da1"
+    },
+    {
+      "id": "ui-select-alternate",
+      "duration": 0.22997732426303855,
+      "peak": 0.7400000000000001,
+      "rms": 0.06022949981463869,
+      "sha256": "b08b491c03a12c57f0bbb5ea5293eee6fb3d0439814f5b6cc71e4a45fa85786e"
+    },
+    {
+      "id": "card-draw-alternate",
+      "duration": 0.22997732426303855,
+      "peak": 0.7399999999999999,
+      "rms": 0.08906583055816263,
+      "sha256": "619556276e42ad19d48c56a6e57aeed54e5356aa7fa9238bf47e046f55b06cff"
+    },
+    {
+      "id": "impact-light-alternate",
+      "duration": 0.34,
+      "peak": 0.74,
+      "rms": 0.1509123758157899,
+      "sha256": "9d50bd72d7474a71e75d6fd670a5d2c006f5d53498bdbadb6506b4d7c87c573a"
+    }
+  ],
+  "uniqueHashes": 64,
+  "totalCueBytes": 2236826,
+  "auditionDuration": 19.919909297052154
+}

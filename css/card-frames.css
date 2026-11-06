@@ -1,0 +1,515 @@
+.card-frame-definitions {
+  position: absolute;
+  pointer-events: none;
+}
+.seal-card {
+  --jade-light: #e0f1dc;
+  --jade-glint: #fbfff1;
+  --jade: #89ad99;
+  --jade-mid: #658c7b;
+  --jade-deep: #354f49;
+  --seal-color: #d5ded0;
+  --trim: #a59b77;
+  --rim: 7px;
+  position: relative;
+  isolation: isolate;
+  clip-path: url(#jade-tablet);
+}
+.seal-card.collection-card,
+.seal-card.duel-card,
+.seal-card.inspected-tablet {
+  border: 0;
+  border-radius: 0;
+  padding: 25px 12px 27px;
+  background: transparent;
+  box-shadow: none;
+}
+.seal-card::before,
+.seal-card::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  clip-path: url(#jade-tablet);
+}
+.seal-card::before {
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(117deg, transparent 8%, #faffed66 8.4%, transparent 9.1%, transparent 68%, #f6ffeb44 68.5%, transparent 69.5%),
+    linear-gradient(71deg, transparent 21%, #16382d66 21.5%, transparent 22.6%, transparent 89%, #e8ffe777 89.5%, transparent 90.6%),
+    radial-gradient(ellipse at 18% 20%, #f5ffdd99, transparent 28%),
+    radial-gradient(ellipse at 85% 70%, #d2ffcb55, transparent 25%),
+    linear-gradient(128deg, var(--jade-deep), var(--jade-light) 5%, var(--jade) 10%,
+      var(--jade-mid) 26%, var(--jade-glint) 49%, var(--jade) 54%,
+      var(--jade-deep) 78%, var(--jade-mid) 92%, var(--jade-light));
+  box-shadow: inset 2px 2px 2px #faffedaa, inset -3px -4px 4px #07140ee6;
+}
+.seal-card::after {
+  inset: var(--rim);
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 22% 0, #b1d5ba1f, transparent 48%),
+    linear-gradient(135deg, #273538, #19232c 48%, #242a33);
+  box-shadow: inset 2px 3px 3px #060f15ee, inset -1px -1px 1px #d4efcc88,
+    inset 0 0 0 2px var(--jade-deep);
+}
+.seal-card.grade-uncommon {
+  --jade-light: #d2ffda;
+  --jade-glint: #f4ffe7;
+  --jade: #73ba91;
+  --jade-mid: #438768;
+  --jade-deep: #234b40;
+  --seal-color: #b4f3c6;
+  --trim: #d0c596;
+}
+.seal-card.grade-rare {
+  --jade-light: #d9f4ff;
+  --jade-glint: #f2feff;
+  --jade: #80b7c5;
+  --jade-mid: #427d93;
+  --jade-deep: #294c66;
+  --seal-color: #a6e5fa;
+  --trim: #d4dfd8;
+  --rim: 8px;
+}
+.seal-card.grade-legendary {
+  --jade-light: #fff0bf;
+  --jade-glint: #fffce4;
+  --jade: #c9bb7d;
+  --jade-mid: #9c8c50;
+  --jade-deep: #5c6545;
+  --seal-color: #ffe1a0;
+  --trim: #ffde92;
+  --rim: 9px;
+}
+.seal-card.grade-legendary::after {
+  background: radial-gradient(ellipse at 50% 0, #c59f4a33, transparent 65%),
+    linear-gradient(135deg, #323936, #202932 65%, #333333);
+}
+.seal-card .card-image,
+.seal-card.duel-card .battle-card-art {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: 15px;
+  clip-path: none;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--jade-deep), var(--trim), var(--jade-light), var(--jade-deep));
+  box-shadow: 0 2px 4px #0009, inset 0 1px 1px var(--jade-light);
+}
+.seal-card .card-image > img,
+.seal-card.duel-card .battle-card-art > img {
+  border-radius: 12px;
+  clip-path: none;
+}
+.form-strike .card-image,
+.form-strike.duel-card .battle-card-art {
+  border-radius: 18px 18px 10px 10px;
+}
+.form-ward .card-image,
+.form-ward.duel-card .battle-card-art {
+  border-radius: 27px 27px 12px 12px;
+}
+.form-ward .card-image > img,
+.form-ward.duel-card .battle-card-art > img {
+  border-radius: 23px 23px 9px 9px;
+}
+.form-remedy .card-image,
+.form-remedy.duel-card .battle-card-art {
+  border-radius: 22px 22px 23px 23px;
+}
+.form-remedy .card-image > img,
+.form-remedy.duel-card .battle-card-art > img {
+  border-radius: 19px;
+}
+.seal-card .collection-body,
+.seal-card.duel-card .battle-card-body {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+.seal-card .collection-body {
+  padding: 7px 2px 0;
+}
+.seal-card .collection-body h3,
+.seal-card.duel-card .battle-card-body > b {
+  color: #f4ecd8;
+  text-shadow: 0 2px 3px #000;
+}
+.seal-card .collection-body .card-rare {
+  color: var(--seal-color);
+  font-size: .52rem;
+}
+.seal-card .cost,
+.seal-card.duel-card .cost {
+  position: absolute;
+  top: 31px;
+  left: 7px;
+  z-index: 4;
+  width: 29px;
+  height: 31px;
+  min-width: 29px;
+  border: 2px solid var(--jade-light);
+  border-radius: 12px 12px 15px 15px;
+  clip-path: none;
+  background: radial-gradient(ellipse at 30% 20%, #c3f0d9, #398e80 45%, #214f52 80%);
+  box-shadow: inset 0 2px 2px #ffffff88, inset 0 -3px 3px #071d20bb, 1px 2px 3px #000b;
+  color: #fff7d9;
+  font: 800 1.03rem var(--serif);
+}
+.seal-card .card-school-icon {
+  position: absolute;
+  top: 34px;
+  right: 9px;
+  z-index: 4;
+  width: 21px;
+  height: 21px;
+  border: 2px solid var(--jade-light);
+  border-radius: 7px;
+  box-shadow: 0 2px 4px #000b;
+}
+.tablet-crown {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--seal-color);
+  height: 21px;
+  z-index: 3;
+  pointer-events: none;
+}
+.tablet-crown b {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 21px;
+  border-radius: 9px;
+  border: 1px solid var(--trim);
+  background: radial-gradient(ellipse at 30% 18%, var(--jade-light), var(--jade) 45%, var(--jade-deep));
+  box-shadow: inset 0 2px 2px #ffffff88, inset 0 -2px 2px #071510bb, 0 2px 3px #000b;
+}
+.tablet-crown b svg {
+  width: 12px;
+  height: 12px;
+  color: #16352f;
+  filter: drop-shadow(0 1px #ffffff88);
+}
+.form-strike .tablet-crown b {
+  border-radius: 7px 7px 11px 11px;
+}
+.form-ward .tablet-crown b {
+  border-radius: 8px 8px 12px 12px;
+  outline: 1px solid var(--jade-deep);
+  outline-offset: 1px;
+}
+.form-remedy .tablet-crown b {
+  border-radius: 50%;
+}
+.tablet-crown i {
+  display: block;
+  width: 9px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--trim);
+  box-shadow: 0 1px 1px var(--jade-deep);
+}
+.grade-rare .tablet-crown i {
+  width: 13px;
+  height: 5px;
+  border: 1px solid var(--trim);
+  background: var(--jade-mid);
+}
+.grade-legendary .tablet-crown i {
+  width: 17px;
+  height: 7px;
+  border: 1px solid var(--trim);
+  background: linear-gradient(var(--jade-light), var(--jade-mid));
+}
+.grade-legendary .tablet-crown b {
+  width: 25px;
+  height: 23px;
+  border: 2px solid var(--trim);
+}
+.jade-relief {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+.jade-relief path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.carving-shadow {
+  stroke: var(--jade-deep);
+  stroke-width: 2px;
+  opacity: .9;
+}
+.carving-light {
+  stroke: var(--jade-light);
+  stroke-width: 1px;
+  opacity: .7;
+}
+.grade-rare .carving-light,
+.grade-legendary .carving-light {
+  stroke: var(--trim);
+  stroke-width: 1.5px;
+}
+.rarity-seals {
+  position: absolute;
+  bottom: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  z-index: 3;
+  pointer-events: none;
+}
+.rarity-seals > i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--trim);
+  border-radius: 2px;
+  background: radial-gradient(ellipse at 25% 20%, var(--jade-light), var(--jade-mid));
+  box-shadow: 0 1px 2px #000b;
+}
+.grade-common .rarity-seals > i {
+  border-radius: 50%;
+}
+.grade-legendary .rarity-seals > i:nth-child(3) {
+  width: 9px;
+  height: 9px;
+  margin-top: -2px;
+  border-radius: 4px;
+}
+.technique-type {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  font-size: .55rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--seal-color);
+}
+.technique-type svg {
+  width: 12px;
+  height: 12px;
+}
+.seal-card.duel-card .battle-card-body {
+  padding: 6px 0 0;
+}
+.seal-card.duel-card .battle-card-body > b {
+  font-size: .85rem;
+}
+.seal-card .effect-badge {
+  border: 1px solid var(--jade-deep);
+  border-radius: 7px;
+  background: linear-gradient(#263b3b, #1b2831);
+  box-shadow: inset 0 1px #d7ead522, 0 1px 2px #0008;
+}
+.seal-card:focus-visible {
+  outline: none;
+}
+.seal-card:focus-visible::after,
+.seal-card.duel-card.card-selected::after,
+.seal-card.duel-card:not(:disabled):hover::after {
+  box-shadow: inset 0 0 0 2px #fff0bd, inset 0 0 20px #d2eab944;
+}
+.seal-card.duel-card:not(:disabled):hover,
+.seal-card.duel-card.card-selected:not(:disabled),
+.seal-card.collection-card:hover {
+  border: 0;
+  box-shadow: none;
+}
+.inspected-tablet {
+  width: 215px;
+  margin: 0 auto 15px;
+}
+.inspected-tablet .card-image {
+  height: 155px;
+}
+.inspected-tablet .collection-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.inspected-tablet h3 {
+  font-size: 1.14rem;
+  margin: 5px 0 7px;
+  text-align: center;
+}
+.seal-card .card-actions {
+  margin-top: 8px;
+  padding-inline: 0;
+  gap: 3px;
+}
+.seal-card .card-actions .btn {
+  font-size: .63rem;
+  min-height: 29px;
+  padding: 3px 5px;
+}
+.fx-cast:has(.cast-tablet) {
+  height: auto;
+  aspect-ratio: auto;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.fx-cast:has(.cast-tablet)::after {
+  display: none;
+}
+.fx-cast .cast-tablet {
+  width: 100%;
+  margin: 0;
+  transform: none !important;
+}
+@media (max-width: 670px) {
+  .seal-card {
+    --rim: 6px;
+  }
+  .seal-card.grade-rare,
+  .seal-card.grade-legendary {
+    --rim: 7px;
+  }
+  .seal-card.collection-card {
+    padding: 25px 10px 25px;
+  }
+  .seal-card.duel-card {
+    padding: 24px 10px 24px;
+  }
+  .seal-card.duel-card .battle-card-art {
+    height: 80px;
+  }
+  .seal-card.duel-card .battle-card-body > b {
+    font-size: .74rem;
+  }
+  .seal-card.duel-card .cost {
+    top: 29px;
+    left: 6px;
+    width: 25px;
+    min-width: 25px;
+    height: 28px;
+  }
+  .seal-card.duel-card .card-school-icon {
+    top: 32px;
+    right: 8px;
+    width: 17px;
+    height: 17px;
+  }
+  .technique-type {
+    font-size: .47rem;
+    gap: 3px;
+  }
+  .technique-type svg {
+    width: 10px;
+    height: 10px;
+  }
+  .seal-card .card-actions .btn {
+    font-size: .57rem;
+    padding: 3px 4px;
+  }
+  .tablet-crown {
+    gap: 3px;
+  }
+}
+.seal-card {
+  --type-surface: #9a2945;
+  --type-edge: #ffc58e;
+  --type-ink: #fff3c1;
+}
+.form-ward {
+  --type-surface: #2451a8;
+  --type-edge: #a4dcff;
+  --type-ink: #e2f7ff;
+}
+.form-mantra {
+  --type-surface: #7135ad;
+  --type-edge: #ecc1ff;
+  --type-ink: #fff0b4;
+}
+.form-remedy {
+  --type-surface: #a62b73;
+  --type-edge: #ffc1dd;
+  --type-ink: #fff4d0;
+}
+.seal-card .tablet-crown {
+  top: 18px;
+  height: 35px;
+  gap: 4px;
+}
+.seal-card .tablet-crown b {
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--type-edge);
+  border-radius: 12px;
+  outline: 1px solid #241731;
+  outline-offset: 1px;
+  background: radial-gradient(ellipse at 28% 15%, #ffffff77, transparent 46%),
+    linear-gradient(145deg, var(--type-surface) 25%, #18162b);
+  box-shadow: inset 0 2px 2px #ffffff88, inset 0 -3px 4px #090b1caa,
+    0 2px 4px #000c, 0 0 9px color-mix(in srgb, var(--type-surface) 70%, transparent);
+}
+.seal-card .tablet-crown b svg {
+  width: 23px;
+  height: 23px;
+  color: var(--type-ink);
+  filter: drop-shadow(0 1px 1px #140d28);
+}
+.form-remedy .tablet-crown b {
+  border-radius: 50%;
+}
+.seal-card .tablet-crown i {
+  background: var(--type-edge);
+}
+.seal-card.collection-card,
+.seal-card.inspected-tablet {
+  padding-top: 36px;
+}
+.seal-card.duel-card {
+  padding-top: 33px;
+}
+.seal-card .technique-type {
+  color: var(--type-edge);
+}
+@media (max-width: 670px) {
+  .seal-card .tablet-crown b {
+    width: 29px;
+    height: 29px;
+  }
+  .seal-card .tablet-crown b svg {
+    width: 20px;
+    height: 20px;
+  }
+  .seal-card.duel-card,
+  .seal-card.collection-card {
+    padding-top: 33px;
+  }
+}
+.form-hex { --type-surface:#48218e; --type-edge:#ffb1f1; --type-ink:#fff5ce; }
+.form-formation { --type-surface:#9c6611; --type-edge:#ffe592; --type-ink:#e8f6ff; }
+.form-stance { --type-surface:#075575; --type-edge:#8af0f9; --type-ink:#fff1bb; }
+.form-counter { --type-surface:#24347b; --type-edge:#c2d1ff; --type-ink:#ffdc88; }
+.form-pact { --type-surface:#73192e; --type-edge:#ffa79c; --type-ink:#fff5e4; }
+.form-ritual { --type-surface:#432774; --type-edge:#baa6ff; --type-ink:#fdedb0; }
+.form-transmute { --type-surface:#675111; --type-edge:#9dffdb; --type-ink:#fff7bd; }
+.form-finisher { --type-surface:#b43c1c; --type-edge:#ffcb8a; --type-ink:#fffef1; }
+.form-hex .tablet-crown b { border-radius:50% 30% 50% 30%; }
+.form-formation .tablet-crown b { border-radius:8px; }
+.form-stance .tablet-crown b { border-radius:50%; }
+.form-pact .tablet-crown b { border-radius:50% 50% 40% 40%; }
+.form-finisher .tablet-crown b { border-radius:10px 10px 14px 14px; }

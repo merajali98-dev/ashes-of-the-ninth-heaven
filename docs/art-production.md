@@ -1,0 +1,23 @@
+# Art production
+
+Ashes of the Ninth Heaven uses original 3D donghua-inspired illustrations generated with built-in ImageGen. The visual direction draws on the cultivation armor, silk and qi of [Battle Through the Heavens](https://wetv.vip/zh-tw/play/fc0jm32uyhpfqae-Fights_Break_Sphere_S5) and the cosmic machinery and energy effects of [Swallowed Star](https://www.youtube.com/watch?v=xCaHyMk8oa4). The game’s characters, equipment, and environments were designed for its own story.
+
+The palette pairs midnight indigo and weathered gold with distinct school accents. Iron uses silver and seal red, Ember uses orange and brass, Tide uses cyan and salt white, Shade uses violet and ivory, Lotus uses jade, Thunder uses cobalt, and Star uses antique gold. Common forms use ash, parchment, and warm lamplight.
+
+## Final prompt set
+
+- **Shared render brief.** Render a premium contemporary Chinese 3D CGI cultivation scene. Use sculpted East Asian facial geometry, individually groomed hair, engraved layered armor, woven silks, physically based metal and jade, directional cinematic light, and volumetric school-colored qi. Keep forms legible at card size against a midnight ground. Exclude labels, watermarks, and interface decoration.
+- **Shen Luo.** Show a charcoal-robed cultivator with long tied black hair, a thin diagonal left eyebrow scar, midnight titanium and carved ash-gold shoulder armor, and a crimson scarf. In the panoramic key art, place him and his jade sword against a shattered celestial astrolabe on the right. Leave the left dark and quiet for the headline. Use the resulting character reference for his square bust and starter technique poses.
+- **Cast and adversaries.** Render each character’s age, silhouette, costume, signature prop, and school lighting in a separate bust crop. Preserve the approved tile order in four-by-three or three-by-three sheets. The Paper Taxman reads as a clay mask and torn warrants, Magistrate Wei as a jade mask and antlered crown, and the Ninth Heaven as a gold sovereign with fractured celestial rings.
+- **Techniques and schools.** Show one identifiable action, spell, prop, or setting for each named technique. Palm Strike breaks stone with a foreshortened hand. Breath Ward catches incoming darts in a circle of pale qi. Gather Qi holds a glowing spark over a teacup. The signature sheet covers the starter and legendary techniques, with a separate atlas per school for the remaining cards. The school emblems use a representative technique scene in that school’s accent palette.
+- **Equipment and supplies.** Isolate each original object against cool indigo with a distinct silhouette and oblique gold and blue lighting. Show modeled details such as jade inclusions, layered plate, cracked bamboo, porcelain glaze, weathered paper, and qi-lit engraving. Two four-by-four sheets cover the first 32 named items, including all 18 legendary items. Thirteen additional four-by-four icon sheets give every remaining item its own isolated prop illustration.
+- **Environments.** Set combat on wet obsidian under an eclipse, with levitating qi rings above the open court. Give each of the seven campaign regions and the Ember Shrine a separate vista. Use ruined funeral architecture, salt flats, violet mortuary silk, jade archives, storm cables, brass astronomy, and shattered gold palaces as location cues. Seven sect environments and a neutral tea house have separate panoramic illustrations.
+
+## Integration and checks
+
+The local art library contains 492 WebP files. It includes 69 individual portraits covering all 48 named characters and all 35 enemies with shared identities counted once, 117 individual card images, 13 school illustrations, 231 named item illustrations, 32 square signature icon variants, 12 inventory category and variant images, and 18 environments. The browser resolves every portrait, technique, and item by content ID. The complete icon pass is documented in [Item and skill icons](item-icons.md).
+
+Each source sheet was visually checked for subject order and crop boundaries. Individual tiles were trimmed away from the seams and optimized for the web. The initial CGI pass decoded all 261 images in Edge and reported no runtime or network errors during mobile navigation, oath selection, the opening fight, and save restoration. Combat stayed within the viewport at widths of 320, 390, 768, 1024, and 1440 pixels. The subsequent item icon pass validates all 348 item and skill files for successful decoding, distinct content, and complete ID coverage.
+
+- [Desktop sanctuary](preview-desktop.jpg)
+- [Mobile combat](preview-mobile.jpg)
