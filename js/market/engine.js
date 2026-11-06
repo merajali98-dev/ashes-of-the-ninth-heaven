@@ -4,7 +4,7 @@
 import * as R from './merchant-rules.js';
 import {MARKET_TOKENS} from './tokens.js';
 import {bountyRewards, forgeRecipe} from '../economy.js';
-import {cards} from '../content.js';
+import {cards, schools} from '../content.js';
 
 export const JADE = 'jade';
 export const SCHOOLS = ['iron', 'ember', 'tide', 'shade', 'lotus', 'thunder', 'star', 'neutral'];
@@ -15,6 +15,7 @@ export const VEIN = Object.freeze({fullBps: 10_000, perRunBps: 1_200, minBps: 2_
 
 const div = (a, b) => Math.trunc(a / b) || 0;   // || 0 turns -0 into 0: Rust integers have no negative zero
 const cardById = Object.fromEntries(cards.map(card => [card.id, card]));
+const schoolName = id => schools.find(s => s.id === id)?.name ?? id;
 
 export function createWorld({seed = 1, tokens = MARKET_TOKENS, merchants = R.MERCHANTS, trace = null} = {}) {
   const world = {
@@ -33,7 +34,7 @@ export function createWorld({seed = 1, tokens = MARKET_TOKENS, merchants = R.MER
     for (const [id, n] of Object.entries(state.stock)) mint(world, id, n);
   }
   trace?.push({op: 'genesis', seed, merchants: merchants.map(m => m.id), tokens: Object.values(tokens)});
-  note(world, 'edict', `The Pagoda Edict favours ${R.edictSchool(0)} this week.`);
+  note(world, 'edict', `The Pagoda Edict favours ${schoolName(R.edictSchool(0))} this week.`);
   return world;
 }
 
@@ -199,7 +200,7 @@ export function endHour(world) {
   for (const key of Object.keys(world.veins)) world.veins[key] = Math.min(VEIN.fullBps, world.veins[key] + VEIN.regenBps);
   if ((world.tick + 1) % R.TIME.ticksPerDay === 0) payPatrons(world);
   world.tick++;
-  if (world.tick % R.TIME.ticksPerWeek === 0) note(world, 'edict', `The Pagoda Edict now favours ${R.edictSchool(world.tick)}.`);
+  if (world.tick % R.TIME.ticksPerWeek === 0) note(world, 'edict', `The Pagoda Edict now favours ${schoolName(R.edictSchool(world.tick))}.`);
   const event = R.activeEvent(world.tick);
   if (event && world.tick % R.EVENTS.periodTicks === 0) note(world, 'event', event.text + '.', {event: event.id});
 }

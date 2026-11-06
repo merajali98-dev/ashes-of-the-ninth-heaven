@@ -12,7 +12,7 @@ import { itemArt, itemIcon } from './item-art.js';
 
 export const NAV = [
   ['home','home','Sanctuary'], ['campaign','compass','Expeditions'], ['deck','cards','Decks'],
-  ['inventory','bag','Inventory'], ['forge','forge','Workshop'], ['market','market','Shop'],
+  ['inventory','bag','Inventory'], ['forge','forge','Workshop'], ['market','market','Market'],
   ['pets','spark','Spirit Pets'], ['trial','tower','Endless Pagoda'], ['codex','book','Chronicle'],
 ];
 

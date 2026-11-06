@@ -1,12 +1,12 @@
 import {esc} from './ui.js';
 
 const sanctuary=[
-  {page:'home',target:'.cultivator-plaque',title:'Your path to immortality',text:'Essence raises you through nine layers of each realm. At the threshold, pay jade to break through, gain vitality and reveal a stronger appearance.'},
-  {page:'campaign',target:'.expedition-path',title:'Follow the chronicle',text:'Choose an open expedition. Story rewards grant cards, gear, jade and cultivation essence. Your choices are recorded permanently.'},
-  {page:'deck',target:'.deck-tray',title:'Build a deck from your cards',text:'Add owned copies to an editing draft. Save a named deck, then activate it for battle. Decks carry 8–22 cards, with up to four of each technique.'},
-  {page:'market',target:'[data-tutorial="shop-content"]',title:'Choose your next technique',text:'The Shop lists every card and all raw materials. Cultivation unlocks higher offers. Select an item to inspect its exact price and requirements.'},
+  {page:'home',target:'.shrine-market',title:'The market never sleeps',text:'Nine merchants trade with their own purses and their own reasons. Every sale moves a price, and a shop that runs out of jade closes until someone rekindles it.'},
+  {page:'market',target:'[data-tutorial="shop-content"]',title:'Hear a merchant\u2019s reasons',text:'Hover, focus or tap any price: stock against what the merchant wants, recent demand, the weekly Pagoda Edict, events and the Paper Taxman. Selling a lot at once moves the price against you.'},
+  {page:'bounties',target:'.bounty-grid',title:'Fight for what sells',text:'Commissions are repeatable duels with guaranteed rewards. Each one shows where its essence sells best right now. Sell where it pays, or keep it to forge.'},
   {page:'forge',target:'.workbench-panel',title:'Shape your collection',text:'Forge cards from Seal Jade and school essences. Upgrade a technique for every owned copy, or salvage spare cards. Copies reserved by decks are protected.'},
-  {page:'bounties',target:'.bounty-grid',title:'Earn what you need',text:'Material commissions are repeatable duels with guaranteed rewards. Choose a school and material tier to gather toward an exact recipe. Your story card rewards remain yours.'},
+  {page:'campaign',target:'.expedition-path',title:'Follow the chronicle',text:'Choose an open expedition. Story rewards grant cards, gear, jade and cultivation essence. Your choices are recorded permanently.'},
+  {page:'deck',target:'.deck-tray',title:'Build a deck from your cards',text:'Add owned copies to an editing draft. Save a named deck, then activate it for battle. Decks carry 8\u201322 cards, with up to four of each technique.'},
 ];
 const battle=[
   {target:'.enemy-intent-token',title:'Read the next move',text:'The enemy announces its next action. Guard absorbs damage; the forecast beside End turn shows what will reach your vitality.'},

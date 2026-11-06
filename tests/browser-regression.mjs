@@ -7,7 +7,7 @@ if(!server.listening)await once(server,'listening');
 try {
   const failures=[];
   const requested=process.argv.slice(2);
-  const suites=['motion','workshop','pet','audio','expansion','tutorial','treasury'];
+  const suites=['motion','workshop','pet','audio','expansion','tutorial'];
   for(const name of requested.length?requested:suites) {
     if(!suites.includes(name))throw new Error(`Unknown browser suite: ${name}`);
     console.log(`Running ${name} browser regression`);

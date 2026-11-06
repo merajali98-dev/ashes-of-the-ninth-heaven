@@ -29,7 +29,7 @@ try {
 
   const game=rules.freshGame(23);rules.begin(game,'Workshop Browser');game.realm=9;game.essence=6500;
   game.jade=100000;game.hp=rules.maxHp(game);game.tutorial={version:1,sanctuary:6,battle:4};
-  await load(game);await nav('market');
+  await load(game);await nav('market');await tab('cards');
   assert.equal(await page.locator('.commerce-count').innerText(),'597 techniques');
   assert.equal(await page.locator('.commerce-card').count(),24);
   await page.locator('[data-action="card-page"][data-id="1"]').click();assert.equal(await page.locator('.commerce-pages span').innerText(),'2 / 25');
@@ -46,16 +46,10 @@ try {
   assert.equal(await page.locator(`[data-action="forge-card"][data-id="${id}"]`).isDisabled(),true);
   assert.match(await page.locator('.workbench-panel').innerText(),/Need \d+ more/);
   await screenshot('forge-shortage');
+  // Materials now come from commissions or merchants (covered by tests/market-local.test.js), so grant them directly.
   async function buyMaterial(material,quantity) {
-    await close();await nav('market');await tab('materials');
-    assert.equal(await page.locator('.commerce-count').innerText(),'45 materials');
-    await page.locator(`[data-action="material-inspect"][data-id="${material}"]`).click();
-    const before=await saved();
-    await page.locator('#dialog input[name="quantity"]').fill(String(quantity));
-    assert.equal(Number((await page.locator('[data-material-total]').innerText()).trim()),rules.materialPrice(material)*quantity);
-    await page.locator('[data-material-submit]').click();
-    const after=await saved();assert.equal(after.materials[material],(before.materials[material]||0)+quantity);
-    assert.equal(after.jade,before.jade-rules.materialPrice(material)*quantity);await close();
+    await close();const current=await saved();
+    current.materials[material]=(current.materials[material]||0)+quantity;await load(current);
   }
   const recipe=rules.forgeRecipe(id);
   for(const [material,quantity] of Object.entries(recipe.materials))await buyMaterial(material,quantity);
@@ -77,7 +71,7 @@ try {
   assert.equal(await page.locator(`[data-action="upgrade-card"][data-id="${id}"]`).isDisabled(),true);
   assert.match(await page.locator('.workbench-panel').innerText(),/Maximum level/);await screenshot('perfected');
 
-  await nav('market');await search(card.name);await page.locator(`[data-action="shop-inspect"][data-id="${id}"]`).click();
+  await nav('market');await tab('cards');await search(card.name);await page.locator(`[data-action="shop-inspect"][data-id="${id}"]`).click();
   before=await saved();await page.locator(`#dialog [data-action="purchase-card"][data-id="${id}"]`).click();after=await saved();
   assert.equal(after.known[id],2);assert.equal(after.jade,before.jade-rules.cardPrice(id));await close();
   await nav('forge');await tab('salvage');await search('Palm Strike');await page.locator('[data-action="workshop-select"][data-id="palm-strike"]').click();
@@ -114,5 +108,5 @@ try {
   await page.locator('.workbench-panel').scrollIntoViewIfNeeded();await screenshot('workbench-mobile');
   assert.ok(await page.evaluate(()=>document.body.scrollWidth<=innerWidth),'workbench has no horizontal overflow');
   assert.deepEqual(errors,[]);assert.deepEqual(httpErrors,[]);
-  console.log(JSON.stringify({status:'passed',checks:['legacy mastery migration','all 597 cards and 45 materials','pagination and compound filters','exact material quantity quotes and purchases','shortage and forge','all four upgrades','direct shop parity','reserved salvage rejection and confirmed surplus salvage','named deck save/activate/reload','incomplete draft persistence','390px deck/workbench'],screenshots:fileURLToPath(output),errors,httpErrors},null,2));
+  console.log(JSON.stringify({status:'passed',checks:['legacy mastery migration','all 597 cards and 45 materials','pagination and compound filters','shortage and forge','all four upgrades','direct shop parity','reserved salvage rejection and confirmed surplus salvage','named deck save/activate/reload','incomplete draft persistence','390px deck/workbench'],screenshots:fileURLToPath(output),errors,httpErrors},null,2));
 } finally {await browser.close();}

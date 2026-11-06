@@ -1,6 +1,6 @@
 # The Spirit Exchange and Thousand-Seal Workshop
 
-Future wallet purchases are specified separately in [monetization-economy.md](monetization-economy.md) and [payment-architecture.md](payment-architecture.md). The Treasury currently previews proposed currency offers with payments disabled; the earned-resource rules below remain in force.
+The market that sets merchant prices is specified in [game-loop.md](game-loop.md) and implemented in `js/market/`. The earned-resource rules below remain in force.
 
 This is the design contract for the requested economy expansion. It replaces cheap archive learning with a progression-gated exchange for all 597 techniques, adds deterministic card recipes and material tempering, and preserves the existing mission rewards, equipment crafting, and usable owned cards. The intended collection loop is choose a technique, see its exact cost and cultivation requirement, pursue a suitable material commission, then buy or forge the desired card. There are no random crafting failures, real-money currencies, energy timers, or randomly rolled card stats.
 

@@ -7,6 +7,7 @@ import { effectBadges, statusBadges, mechanicBadges } from './game-symbols.js';
 import { frameClasses, frameCrest, typeSeal } from './card-frame.js';
 import { icon, esc, button, meter } from './ui.js';
 import {battlePetPanel} from './pet-views.js';
+import {bestBidHint, marketTeaser} from './market/views.js';
 
 const picture = (src, className = '', eager = false) =>
   `<img src="${esc(src)}" class="${className}" alt="" loading="${eager ? 'eager' : 'lazy'}" decoding="async">`;
@@ -61,6 +62,7 @@ export function home(game) {
     <div class="shrine-controls">
       <button class="shrine-action" data-action="rest" ${game.hp >= rules.maxHp(game) ? 'disabled' : ''}>${picture(art('region-rest'))}<span>${icon('moon')} Rest at shrine</span></button>
       <button class="shrine-action" data-action="nav" data-id="deck">${picture(art('card-write-a-new-heaven'))}<span>${icon('cards')} Shape your deck <b>${game.deck.length}</b></span></button>
+      ${marketTeaser(game)}
     </div>
   </section>`;
 }
@@ -96,7 +98,7 @@ export function bounties(game,ui={}) {
   const selected=Math.max(1,Math.min(5,Number(ui.tier)||rules.materialTier(game)));
   return `<section class="bounty-screen"><header class="bounty-heading"><div><div class="eyebrow">THE SECT COMMISSION BOARD</div><h1>Hunt for your next breakthrough</h1><p>Repeatable duels. Choose the school essence you need; every victory grants the exact rewards shown. Defeat and withdrawal grant no materials.</p></div>${button('Workshop','open-forge','',{className:'quiet'})}</header><div class="bounty-tiers">${rules.MATERIAL_TIERS.map(grade=>button(`${grade.name} · Tier ${grade.tier}`,'bounty-tier',String(grade.tier),{className:selected===grade.tier?'selected':''})).join('')}</div><div class="bounty-grid">${rules.schools.map(school=>{
     const offer=rules.bountyOffer(game,school.id,selected);
-    return `<article class="bounty-card"><div class="bounty-art">${picture(art('school-'+school.id))}<span class="eyebrow">${esc(school.name)} · TIER ${selected}</span></div><div class="bounty-body"><h3>${esc(offer.enemy.name)}</h3><small>${Math.round(offer.enemy.hp*offer.scale*(game.difficulty==='tribulation'?1.25:1))} enemy vitality · Two-hero duel</small><div class="bounty-materials">${Object.entries(offer.rewards.materials).map(([id,n])=>`<span class="bounty-reagent" title="${esc(rules.materialById[id].name)}">${rules.materialIcon(id)}<b>+${n}</b></span>`).join('')}</div><div class="bounty-currencies"><span>${icon('jade')} +${offer.rewards.gold} jade</span><span>${icon('essence')} +${offer.rewards.essence} essence</span></div><p class="bounty-notice">${esc(offer.reason||'Guaranteed payout after victory. Claim once per duel.')}</p>${button('Accept commission','start-bounty',`${school.id}:${selected}`,{className:'primary',disabled:!offer.ok})}</div></article>`;
+    return `<article class="bounty-card"><div class="bounty-art">${picture(art('school-'+school.id))}<span class="eyebrow">${esc(school.name)} · TIER ${selected}</span></div><div class="bounty-body"><h3>${esc(offer.enemy.name)}</h3><small>${Math.round(offer.enemy.hp*offer.scale*(game.difficulty==='tribulation'?1.25:1))} enemy vitality · Two-hero duel</small><div class="bounty-materials">${Object.entries(offer.rewards.materials).map(([id,n])=>`<span class="bounty-reagent" title="${esc(rules.materialById[id].name)}">${rules.materialIcon(id)}<b>+${n}</b></span>`).join('')}</div><div class="bounty-currencies"><span>${icon('jade')} +${offer.rewards.gold} jade</span><span>${icon('essence')} +${offer.rewards.essence} essence</span></div>${bestBidHint(game,`mat:essence-${school.id}-${selected}`)}<p class="bounty-notice">${esc(offer.reason||'Guaranteed payout after victory. Claim once per duel.')}</p>${button('Accept commission','start-bounty',`${school.id}:${selected}`,{className:'primary',disabled:!offer.ok})}</div></article>`;
   }).join('')}</div></section>`;
 }
 

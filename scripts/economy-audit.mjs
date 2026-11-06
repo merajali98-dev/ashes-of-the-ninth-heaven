@@ -5,7 +5,6 @@ import * as rules from '../js/progression.js';
 // Run with Node 22+: node scripts/economy-audit.mjs
 const range=values=>({min:Math.min(...values),max:Math.max(...values)});
 const value=recipe=>recipe.jade+Object.entries(recipe.materials).reduce((sum,[id,n])=>sum+n*rules.materialPrice(id),0);
-const centsPerJade=1; // Illustrative 100 jade / USD 1, not a live exchange rate.
 const rarity={};
 for(const card of rules.cards) {
   const recipe=rules.forgeRecipe(card),price=rules.cardPrice(card),forge=value(recipe);
@@ -23,7 +22,6 @@ const cardsByRarity=Object.fromEntries(Object.entries(rarity).map(([key,list])=>
   count:list.length,levelGate:range(list.map(x=>x.gate)),directJade:range(list.map(x=>x.price)),
   forgeRetailJade:range(list.map(x=>x.forge)),forgeTargetedWins:range(list.map(x=>x.materialWins)),
   allFourUpgradeRetailJade:range(list.map(x=>x.fullUpgradeRetail)),
-  directIllustrativeUsd:range(list.map(x=>x.price*centsPerJade/100)),
 }]));
 const commissions=rules.MATERIAL_TIERS.map(tier=>{
   const reward=rules.bountyRewards('iron',tier.tier);
@@ -55,11 +53,10 @@ const campaign={missions:rules.missions.length,
   aggregateChoiceBonusJade:{min:rules.missions.reduce((sum,m)=>sum+(m.choices?.length?Math.min(...m.choices.map(c=>c.rewards?.gold||0)):0),0),
     max:rules.missions.reduce((sum,m)=>sum+(m.choices?.length?Math.max(...m.choices.map(c=>c.rewards?.gold||0)):0),0)}};
 console.log(JSON.stringify({status:'passed',scope:'formula and gate audit; no fabricated battle earnings',
-  rateProposal:{jadePerUsd:100,centsPerJade},cards:rules.cards.length,cardsByRarity,commissions,campaign,
+  cards:rules.cards.length,cardsByRarity,commissions,campaign,
   cultivation:{heroBreakthroughJade,petEvolutionJade,perfectedEssence:6470,
     postBaselineStoryTier5EssenceOnlyWins:Math.ceil((6470-campaign.guaranteedHeroEssence)/repeatableSource.essence)},
   gates:{level1CardsStillLockedDespiteMillionJade:locked.length,heroEssenceGate:true,petHeroRealmGate:true},
   noProfitCycles:{cardRecipes:rules.cards.length,legacyCrafts:legacyCrafts.length},
   notes:['Pet experience is indirectly purchasable through jade-funded spare cards.',
-    'Essence-only tier-five estimate assumes the tier has already unlocked; actual path changes tiers.',
-    'USD equivalents describe proposal values, never a cash-out or guaranteed play-time rate.']},null,2));
+    'Essence-only tier-five estimate assumes the tier has already unlocked; actual path changes tiers.']},null,2));

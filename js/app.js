@@ -9,8 +9,10 @@ import { STATUS_INFO, captureCombatEvents, getCard } from './combat.js';
 import { snapshotBattle, battleFeedback, playBattleEffects, clearBattleEffects } from './battle-fx.js';
 import {captureProgression,playProgressionEffects,clearProgressionEffects} from './progression-fx.js';
 import {configureAudio,unlockAudio,preloadSounds,playSound,stopAudioScope,stopAllAudio} from './audio-engine.js';
-import {createPaymentAdapter} from './payments.js';
-import {treasury,reviewOffer,purchaseHistory} from './treasury-views.js';
+import * as market from './market/local.js';
+import * as marketViews from './market/views.js';
+import {runFastForward} from './market/fastforward.js';
+import {installPriceTooltips} from './market/tooltip.js';
 
 const root = document.querySelector('#app');
 const toast = document.querySelector('#toast');
@@ -21,7 +23,7 @@ const storage = {
 };
 const {game:loaded,warning} = gameRules.readSave(storage);
 let game = loaded;
-let page = game.active ? 'battle' : 'home';
+let page = game.active ? 'battle' : location.hash === '#market-sim' ? 'market-sim' : 'home';
 let ui = {};
 let toastTimer;
 let combatMotion=null;
@@ -31,8 +33,9 @@ let combatControls=new Map();
 let committedProgress=captureProgression(game);
 let audioWarmup=null;
 let audioIntent=0;
-// Deployment must supply an authenticated backend before payments can be enabled.
-const paymentAdapter=createPaymentAdapter();
+// Fast-forward scenarios for judges: the same engine and rules as the live market, labelled as a simulation.
+const SIM_SCENARIOS={week:{cast:{flooder:false}},flood:{cast:{flooder:true}},audit:{cast:{flooder:false},shocks:[{id:'ministry-audit',tick:60}]}};
+let simParams=structuredClone(SIM_SCENARIOS.week),simScenario='week',simResult=null,simTimer=null;
 const announcedOutcomes=new WeakSet();
 let dialogTrigger;
 let saveWarningShown = false;
@@ -40,7 +43,7 @@ let draggedCard = null;
 let suppressCardClickUntil = 0;
 let shellMarkup='';
 const screens = {home:hub.home,campaign:hub.campaign,deck:views.deck,inventory:views.inventory,
-  forge:commerce.workshop,market:commerce.shop,treasury,trial:views.trial,codex:views.codex,battle:hub.battle,bounties:hub.bounties,pets:petViews.petHabitat};
+  forge:commerce.workshop,market:commerce.shop,'market-sim':(game,ui)=>marketViews.simPage(simulation(),ui),trial:views.trial,codex:views.codex,battle:hub.battle,bounties:hub.bounties,pets:petViews.petHabitat};
 const combatActions=new Set(['select-card','cast-card','play','end','use','pet-ability']);
 syncAudioPreferences();
 
@@ -130,7 +133,7 @@ function render({focus = false, preserve = true} = {}) {
   if(page==='pets')petViews.bindPetMapControls(root);
   const hand = main.querySelector('.duel-hand');
   if (hand) hand.scrollLeft = handScroll;
-  document.title = (page === 'home' ? '' : (views.NAV.find(entry => entry[0] === page)?.[2] || (page==='treasury'?'Celestial Treasury':'Encounter')) + ' · ') + 'Ashes of the Ninth Heaven';
+  document.title = (page === 'home' ? '' : (views.NAV.find(entry => entry[0] === page)?.[2] || (page==='market-sim'?'Fast-forward':'Encounter')) + ' · ') + 'Ashes of the Ninth Heaven';
   if (focus) main.focus({preventScroll:true});
   else if (preserve && key && !dialog.open) {
     const next = Array.from(root.querySelectorAll('button[data-action]'))
@@ -159,7 +162,7 @@ function persist() {
 }
 
 function interactionSound(action) {
-  const cues={buy:'purchase',order:'purchase',sell:'purchase','purchase-card':'purchase','purchase-material':'purchase',learn:'purchase',craft:'forge','forge-card':'forge','upgrade-card':'upgrade',refine:'upgrade','salvage-card':'salvage','deck-save':'deck-save','deck-activate':'deck-equip',equip:'deck-equip','pet-equip':'deck-equip','pet-unequip':'deck-equip','deck-add':'ui-select','deck-remove':'ui-select','draft-add':'ui-select','draft-remove':'ui-select','deck-edit':'ui-select','deck-duplicate':'deck-save','deck-delete':'salvage',rest:'rest',resolve:'reward',study:'upgrade',begin:'reward','pet-feed-confirm':'pet-feed',retreat:'ui-close'};
+  const cues={buy:'purchase',order:'purchase',sell:'purchase','purchase-card':'purchase','purchase-material':'purchase','market-sell':'purchase','market-buy':'purchase','market-invest':'purchase',learn:'purchase',craft:'forge','forge-card':'forge','upgrade-card':'upgrade',refine:'upgrade','salvage-card':'salvage','deck-save':'deck-save','deck-activate':'deck-equip',equip:'deck-equip','pet-equip':'deck-equip','pet-unequip':'deck-equip','deck-add':'ui-select','deck-remove':'ui-select','draft-add':'ui-select','draft-remove':'ui-select','deck-edit':'ui-select','deck-duplicate':'deck-save','deck-delete':'salvage',rest:'rest',resolve:'reward',study:'upgrade',begin:'reward','pet-feed-confirm':'pet-feed',retreat:'ui-close'};
   const cue=cues[action];if(cue)playSound(cue,{scope:'ui',volume:action==='resolve'?0.55:1});
 }
 
@@ -203,6 +206,9 @@ function navigate(next) {
   cancelCombatMotion();
   page = next;
   ui = {};
+  stopSim();
+  if(next==='market-sim'){ui.simPlaying=true;ui.simScenario=simScenario;startSim()}
+  if((next==='market-sim')!==(location.hash==='#market-sim'))history.replaceState(null,'',next==='market-sim'?'#market-sim':location.pathname+location.search);
   render({focus:true});
   root.querySelector('#screen').classList.add('screen-enter');
   window.scrollTo(0,0);
@@ -384,12 +390,40 @@ function activate(action,id = '') {
     }
     case 'open-shop':
       navigate('market');ui.tab='cards';ui.selectedCardId=id;render();if(id)openDialog(commerce.shopInspect(game,id));break;
-    case 'open-material':
-      navigate('market');ui.tab='materials';render();if(id)openDialog(commerce.shopInspect(game,id,true));break;
+    case 'open-material':case 'material-inspect': {
+      // Materials trade with merchants now: open the merchant with the cheapest asking price.
+      const token='mat:'+id,{ask,bid}=market.bestPrices(game,token);
+      navigate('market');ui.tab='merchants';ui.merchant=(ask||bid)?.merchant;ui.focusToken=token;render();break;
+    }
+    case 'market-merchant': {
+      const [merchantId,token]=id.split('|');
+      if(page!=='market')navigate('market');
+      ui.tab='merchants';ui.merchant=merchantId;ui.focusToken=token||null;render();playSound('ui-select',{scope:'ui',volume:.6});break;
+    }
+    case 'market-sell':case 'market-buy': {
+      const [merchantId,token,quantity]=id.split('|');
+      change(action,market.playerTrade(game,merchantId,token,action==='market-sell'?'sell':'buy',Number(quantity)));break;
+    }
+    case 'market-invest': {
+      const [merchantId,jade]=id.split('|');
+      change(action,market.playerInvest(game,merchantId,Number(jade)));break;
+    }
+    case 'sim-scenario':
+      simScenario=Object.hasOwn(SIM_SCENARIOS,id)?id:'week';simParams=structuredClone(SIM_SCENARIOS[simScenario]);ui.simScenario=simScenario;rerunSim();ui.simPlaying=true;startSim();render();break;
+    case 'sim-play':
+      if(ui.simPlaying){ui.simPlaying=false;stopSim()}
+      else{if((ui.simFrame||0)>=simulation().frames.length-1)ui.simFrame=0;ui.simPlaying=true;startSim()}
+      render();break;
+    case 'sim-speed':ui.simSpeed=[1,2,4].includes(Number(id))?Number(id):1;if(ui.simPlaying)startSim();render();break;
+    case 'sim-table':ui.simTable=!ui.simTable;render();break;
+    case 'sim-shock': {
+      const tick=simulation().frames[ui.simFrame||0].tick;
+      simParams={...simParams,shocks:[...(simParams.shocks||[]),{id,tick}]};rerunSim(true);render();
+      notify(`Shock injected on day ${Math.floor(tick/24)+1} at ${String(tick%24).padStart(2,'0')}:00. The week was replayed with it.`);break;
+    }
     case 'open-forge':case 'open-upgrade':case 'open-salvage':
       navigate('forge');ui.tab=action==='open-upgrade'?'upgrade':action==='open-salvage'?'salvage':'forge';ui.selectedCardId=id;render();break;
     case 'shop-inspect': openDialog(commerce.shopInspect(game,id));break;
-    case 'material-inspect': openDialog(commerce.shopInspect(game,id,true));break;
     case 'workshop-select':ui.selectedCardId=id;render();break;
     case 'purchase-card': {
       const result=gameRules.buyCard(game,id);
@@ -419,13 +453,6 @@ function activate(action,id = '') {
     case 'deck-delete': {
       const result=gameRules.deleteDeck(game,id);if(result.ok)closeDialog();change(action,result);break;
     }
-    case 'treasury-tab':ui.treasuryTab=['jade','star-silk','economy'].includes(id)?id:'jade';render();playSound('ui-select',{scope:'ui',volume:.7});break;
-    case 'treasury-review':openDialog(reviewOffer(id));break;
-    case 'treasury-history':openDialog(purchaseHistory());break;
-    case 'treasury-earn':navigate('bounties');break;
-    case 'treasury-checkout':case 'treasury-connect':
-      // Defense in depth: synthetic clicks cannot enable a disabled provider.
-      notify(paymentAdapter.getState().available?'Payments require an account checkout.':'Wallet payments are not enabled in this build.',true);break;
     case 'settings': settings(); break;
     case 'audio-preview': {
       const intent=++audioIntent;
@@ -570,6 +597,13 @@ document.addEventListener('dragend',() => {
 });
 
 document.addEventListener('change', async event => {
+  if (event.target.matches('[data-sim-cast],[data-sim-wanderers]')) {
+    const cast={...simParams.cast};
+    if(event.target.dataset.simCast)cast[event.target.dataset.simCast]=event.target.checked;
+    else cast.wanderers=Number(event.target.value);
+    simParams={...simParams,cast};rerunSim();ui.simPlaying=true;startSim();render();
+    return;
+  }
   if (event.target.matches('[data-filter]')) {
     const {value} = event.target;
     const filter = event.target.dataset.filter;
@@ -612,10 +646,6 @@ document.addEventListener('submit',event => {
     openDialog(petViews.petFeedPreview(game,String(fields.get('petId')),String(fields.get('cardId')),Number(fields.get('quantity'))));
   } else if (form.dataset.form === 'deck-save') {
     change('deck-save',gameRules.saveDeckDraft(game,String(fields.get('deckName')||'')));
-  } else if (form.dataset.form === 'shop-purchase') {
-    const id=form.dataset.id;
-    const result=gameRules.buyMaterial(game,id,Number(fields.get('quantity')));
-    if(change('purchase-material',result))openDialog(commerce.shopInspect(game,id,true));
   } else if (form.dataset.form === 'search') {
     ui.query = String(fields.get('query') || '').trim().slice(0,60);
     ui.cardPage = 0;
@@ -634,13 +664,13 @@ document.addEventListener('input',event=>{
     const preview=dialog.querySelector('[data-action="audio-preview"]');if(preview)preview.disabled=!game.sound||!game.audioSettings.master;
     return;
   }
-  const form=event.target.closest('form');
-  if(form?.dataset.form==='shop-purchase'&&event.target.name==='quantity') {
-    const quantity=Number(event.target.value);
-    const quote=gameRules.quoteBuyMaterial(game,form.dataset.id,quantity);
-    dialog.querySelector('[data-material-quote]').innerHTML=commerce.materialQuantityPreview(game,form.dataset.id,quantity);
-    form.querySelector('[data-material-submit]').disabled=!quote.ok;
+  if(event.target.matches('[data-sim-scrub]')) {
+    ui.simFrame=Math.max(0,Math.min(simulation().frames.length-1,Number(event.target.value)||0));
+    if(ui.simPlaying){ui.simPlaying=false;stopSim();render();root.querySelector('[data-sim-scrub]')?.focus({preventScroll:true})}
+    else updateSimStage();
+    return;
   }
+  const form=event.target.closest('form');
   if(form?.dataset.form==='deck-save'&&event.target.name==='deckName') {
     if(event.target.value.trim()) {gameRules.renameDeckDraft(game,event.target.value);persist()}
   }
@@ -688,7 +718,49 @@ document.addEventListener('keydown',event => {
   }
 });
 
+function simulation() {
+  if(!simResult)simResult=runFastForward(simParams);
+  return simResult;
+}
+function rerunSim(keepFrame=false) {
+  const frame=ui.simFrame||0;
+  simResult=runFastForward(simParams);
+  ui.simFrame=keepFrame?Math.min(frame,simResult.frames.length-1):0;
+}
+function updateSimStage() {
+  const stage=root.querySelector('#sim-stage');
+  if(!stage||!simResult)return;
+  stage.innerHTML=marketViews.simStage(simResult,ui);
+  const scrub=root.querySelector('[data-sim-scrub]');
+  if(scrub&&document.activeElement!==scrub)scrub.value=ui.simFrame||0;
+}
+function stopSim(){clearInterval(simTimer);simTimer=null}
+function startSim() {
+  stopSim();
+  // A week is 168 market hours: about 357 ms each plays it in one minute at 1x.
+  simTimer=setInterval(()=>{
+    if(page!=='market-sim'){stopSim();return}
+    const last=simulation().frames.length-1;
+    if((ui.simFrame||0)>=last){ui.simPlaying=false;stopSim();render();return}
+    ui.simFrame=Math.min(last,(ui.simFrame||0)+1);
+    updateSimStage();
+  },Math.round(60_000/168/(ui.simSpeed||1)));
+}
+
 document.addEventListener('pointerdown',()=>{void warmAudio()},{capture:true,passive:true});
 document.addEventListener('keydown',()=>{void warmAudio()},{capture:true});
+installPriceTooltips();
+window.addEventListener('hashchange',()=>{if(location.hash==='#market-sim'&&page!=='market-sim')navigate('market-sim')});
+// The practice market runs in this browser: one market hour per real minute, caught up on return.
+const away=market.advance(game,Date.now());
+if(away.hours)persist();
+if(page==='market-sim'){ui.simPlaying=true;ui.simScenario=simScenario;startSim()}
 render();
 notify(warning,true);
+if(game.started&&!game.active&&page!=='market-sim'&&away.hours>=15)openDialog(marketViews.awayDialog(away));
+setInterval(()=>{
+  const passed=market.advance(game,Date.now());
+  if(!passed.hours)return;
+  persist();
+  if(page==='market'&&!dialog.open&&!combatBusy&&!root.querySelector('.price-tip:hover,.price-tip:focus'))render();
+},15_000);

@@ -7,6 +7,7 @@ import {itemIcon} from './item-art.js';
 import {frameClasses, frameCrest, typeSeal, CARD_TYPES, cardForm} from './card-frame.js';
 import {effectBadges, mechanicBadges} from './game-symbols.js';
 import {icon, esc, titleCase, button, tag} from './ui.js';
+import {merchantsTab, priceBoard} from './market/views.js';
 
 const PAGE_SIZE=24;
 const gradeNames=['common','uncommon','rare','legendary'];
@@ -95,36 +96,30 @@ function materialMeta(material) {
   return `<span class="material-meta"><span class="material-tier">T${material.tier}</span><span class="rarity-${esc(material.rarity)}">${esc(titleCase(material.rarity))}</span><span>${esc(material.school?school(material.school):titleCase(material.family))}</span></span>`;
 }
 
-function materialTile(game,material) {
-  const quote=economy.quoteBuyMaterial(game,material.id,1);
-  return `<article class="material-card">${materialIcon(material)}<div class="material-info">${materialMeta(material)}<h3>${esc(material.name)}</h3><span class="material-count">Owned ${game.materials?.[material.id]||0}</span><div class="commerce-price" style="justify-content:flex-start">${priceLabel(economy.materialPrice(material))}<small>/ unit</small></div>${button('Buy material','material-inspect',material.id,{className:'compact',ariaLabel:`Buy ${material.name}`})}${quote.requiredLevel>cultivationLevel(game)?`<p>${icon('lock')} ${esc(requirementLabel(quote.requiredLevel))}</p>`:''}</div></article>`;
-}
-
-function materialCatalogue(game,ui) {
-  const list=economy.materials.filter(material=>(!ui.filter||material.school===ui.filter)&&(!ui.tier||String(material.tier)===String(ui.tier))&&(!ui.rarity||material.rarity===ui.rarity)&&matches(material,ui.query)&&(ui.available!=='ready'||economy.quoteBuyMaterial(game,material.id,1).ok));
-  return `<div class="commerce-controls"><div class="commerce-filters">${filter('School','category',schoolOptions(),ui.filter)}${filter('Tier','tier',[1,2,3,4,5].map(n=>[n,`Tier ${n}`]),ui.tier)}${filter('Rarity','rarity',rarityOptions(),ui.rarity)}${filter('Show','available',[['ready','Affordable & unlocked']],ui.available)}</div>${search(ui)}<span class="commerce-count">${list.length} materials</span></div><div class="material-grid">${list.map(material=>materialTile(game,material)).join('')}</div>${list.length?'':empty('No materials found','Change the tier or school filter.')}`;
-}
-
+// Pills and talismans trade with Auntie Shi in the market, so the gear stall leaves them out.
+const merchantGood=item=>item.type==='pill'||item.type==='talisman';
 function legacyGoods(game,ui,selling=false) {
-  const listed=selling?rules.items.filter(item=>game.bag[item.id]):rules.catalogue(game);
+  const listed=(selling?rules.items.filter(item=>game.bag[item.id]):rules.catalogue(game)).filter(item=>!merchantGood(item));
   const list=listed.filter(item=>(!ui.filter||item.type===ui.filter)&&matches(item,ui.query));
-  return `<div class="commerce-controls"><div class="commerce-filters">${filter('Type','category',[...new Set(rules.items.map(item=>item.type))].map(id=>[id,titleCase(id)]),ui.filter)}</div>${search(ui)}<span class="commerce-count">${list.length} goods</span></div><div class="commerce-item-grid">${list.map(item=>{
+  return `<div class="commerce-controls"><div class="commerce-filters">${filter('Type','category',[...new Set(rules.items.filter(item=>!merchantGood(item)).map(item=>item.type))].map(id=>[id,titleCase(id)]),ui.filter)}</div>${search(ui)}<span class="commerce-count">${list.length} goods</span></div><div class="commerce-item-grid">${list.map(item=>{
     const equipped=Object.values(game.equipped).includes(item.id);
     const jade=selling?Math.max(1,Math.floor(rules.price(item)/2)):rules.price(item,game);
     return `<article class="commerce-item"><button data-action="item-details" data-id="${esc(item.id)}" aria-label="${esc(item.name)} details">${image(itemIcon(item))}</button><div><div class="card-rare rarity-${esc(item.rarity)}">${esc(titleCase(item.rarity||'common'))} · ${esc(titleCase(item.type))}</div><h3>${esc(item.name)}</h3><p>${esc(item.description)}</p><span class="commerce-owned">Owned ×${game.bag[item.id]||0}${equipped?' · Equipped':''}</span><div class="card-actions">${button(`${selling?'Sell':'Buy'} · ${jade} jade`,selling?'sell':'order',item.id,{className:'compact',disabled:selling?(game.bag[item.id]||0)<=Number(equipped):game.jade<jade})}</div></div></article>`;
   }).join('')}</div>${list.length?'':empty(selling?'Nothing to sell':'No goods found',selling?'Expedition supplies and equipment appear here.':'Change your filters or progress through the chronicle.')}`;
 }
 
+export const SHOP_TABS=[['merchants','Merchants'],['prices','Price board'],['cards','Techniques'],['goods','Gear'],['sell','Sell gear']];
 export function shop(game,ui={}) {
-  const tabId=['cards','materials','goods','sell'].includes(ui.tab)?ui.tab:'cards';
+  const tabId=SHOP_TABS.some(([id])=>id===ui.tab)?ui.tab:'merchants';
   let body;
-  if(tabId==='materials') body=materialCatalogue(game,ui);
+  if(tabId==='merchants') body=merchantsTab(game,ui);
+  else if(tabId==='prices') body=priceBoard(game);
   else if(tabId==='goods'||tabId==='sell') body=legacyGoods(game,ui,tabId==='sell');
   else {
     const list=filterCards(game,ui,rules.cards,economy.quoteBuyCard);
     body=cardFilters(ui,list.length)+paginated(list,ui,card=>cardTile(game,card));
   }
-  return `<section class="commerce-screen" data-tutorial="shop-content">${header(game,'Night Bazaar','Techniques, elemental essences, and supplies for the long path.','market')}<aside class="treasury-entry"><div><b>Celestial Treasury</b><small>Jade & future cosmetics · wallet payments coming later</small></div>${button('Explore','nav','treasury',{className:'quiet',icon:'jade'})}</aside>${tabs([['cards','Cards'],['materials','Materials'],['goods','Goods'],['sell','Sell goods']],tabId)}${body}</section>`;
+  return `<section class="commerce-screen" data-tutorial="shop-content">${header(game,'Night Bazaar','Nine merchants with their own purses and their own reasons. Techniques and gear for the long path.','market')}${tabs(SHOP_TABS,tabId)}${body}</section>`;
 }
 
 function costRows(game,materials,{yieldOnly=false}={}) {
