@@ -9,6 +9,7 @@ import {privateId} from './secrets.js';
 import {ChainError} from './chain/service.js';
 import {WELCOME} from './grants.js';
 import {MARKET_TOKENS} from '../js/market/tokens.js';
+import {replayCommission} from '../js/progression.js';
 
 const LEDGER_TOKENS = ['jade', ...Object.keys(MARKET_TOKENS)];
 // What one account may add to its holdings per hour without a market trade (battle rewards, selling gear). Day 7 adds
@@ -209,6 +210,38 @@ export function createApi({store, chain, googleKeys} = {}) {
       (data.syncs ??= {})[id] = {hour, jade: used.jade + jade, units: used.units + units};
       store.save();
       return {ok: true};
+    },
+
+    // Proof of battle: the server deals the seed when a commission starts and replays the battle before minting rewards.
+    'POST /api/battle/start': async (req, body) => {
+      const user = needSeal(req);
+      limit('battle:' + user.id, 40, 3600e3);
+      const school = String(body.school || ''), tier = Number(body.tier), inputs = body.inputs;
+      const sane = inputs && Array.isArray(inputs.deck) && inputs.deck.length >= 1 && inputs.deck.length <= 80 &&
+        Number.isFinite(inputs.hp) && Number.isFinite(inputs.maxHp) && inputs.hp > 0 && inputs.hp <= inputs.maxHp && inputs.maxHp <= 2000;
+      if (!MARKET_TOKENS[`mat:essence-${school}-1`] || !Number.isInteger(tier) || tier < 1 || tier > 5 || !sane) throw new HttpError(400, 'BAD_BATTLE');
+      const now = Date.now();
+      data.battles = Object.fromEntries(Object.entries(data.battles ?? {}).filter(([, b]) => now - b.at < 864e5));
+      const battleId = randomBytes(12).toString('base64url'), seed = randomInt(1, 2 ** 31);
+      data.battles[battleId] = {userId: user.id, school, tier, inputs, difficulty: String(body.difficulty || 'wayfarer'), seed, at: now, claimed: false};
+      store.save();
+      return {battleId, seed};
+    },
+
+    'POST /api/battle/claim': async (req, body) => {
+      const user = needSeal(req);
+      const battle = data.battles?.[String(body.battleId || '')];
+      if (!battle || battle.userId !== user.id) throw new HttpError(404, 'NO_BATTLE');
+      if (battle.claimed) throw new HttpError(409, 'ALREADY_CLAIMED');
+      const proof = replayCommission({...battle, actions: body.actions});
+      if (!proof.ok) throw new HttpError(409, proof.reason);
+      battle.claimed = true;
+      const granted = {jade: (proof.rewards.gold ?? 0) * 100,
+        ...Object.fromEntries(Object.entries(proof.rewards.materials ?? {}).map(([id, n]) => ['mat:' + id, n]))};
+      chain.grant(Object.entries(granted).map(([tokenId, amount]) => ({accountId: user.player.accountId, tokenId, amount})),
+        `commission ${battle.school} ${battle.tier}, battle replayed`);
+      store.save();
+      return {ok: true, granted};
     },
 
     'GET /api/status': async () => ({...(await chain.report()), players: Object.keys(data.users).length,

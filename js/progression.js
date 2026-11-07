@@ -218,20 +218,25 @@ export function encounter(game, id) {
   return ok();
 }
 
+/** The player's side of a battle: deck with card levels, health, bonuses and companion. */
+export function battleInputs(game) {
+  return {
+    deck:game.deck.map(id => ({id, upgrade:Math.floor((economy.cardLevel(game,id) - 1) / 2),level:economy.cardLevel(game,id)})),
+    hp:game.hp, maxHp:maxHp(game), bonuses:bonuses(game), pet:petRules.snapshotPet(game),
+  };
+}
+
 function startBattle(game, enemy, context, scale = 1) {
   if (!enemy) return fail('This opponent is missing.');
   const deckReason=deckRequirement(game,game.deck,{allowLegacyCopies:true});
   if (deckReason) return fail(deckReason);
   if (game.hp <= 0) return fail('Rest at the sanctuary to recover.');
-  const combat = createCombat({
-    cards:cardById, deck:game.deck.map(id => ({id, upgrade:Math.floor((economy.cardLevel(game,id) - 1) / 2),level:economy.cardLevel(game,id)})),
-    enemy:scaledEnemy(enemy, scale, game.difficulty === 'tribulation'), hp:game.hp, maxHp:maxHp(game),
-    seed:stableHash([game.seed, context.id, game.attempt]),
-    bonuses:bonuses(game),
-    pet:petRules.snapshotPet(game),
-  });
+  // The player's side of the battle, kept with it so the server can replay a commission (proof of battle).
+  const inputs = battleInputs(game);
+  const seed = Number.isSafeInteger(context.seed) ? context.seed : stableHash([game.seed, context.id, game.attempt]);
+  const combat = createCombat({cards:cardById, ...inputs, enemy:scaledEnemy(enemy, scale, game.difficulty === 'tribulation'), seed});
   game.attempt++;
-  game.active = { ...context, combat };
+  game.active = { ...context, combat, inputs, actions:[] };
   return ok();
 }
 
@@ -252,11 +257,35 @@ export function bountyOffer(game,school='neutral',tier=1) {
   return {school,tier,enemy,rewards,scale:1+(tier-1)*.13,ok:!reason,reason};
 }
 
-export function startBounty(game,school='neutral',tier=1) {
+export function startBounty(game,school='neutral',tier=1,ledger=null) {
   const offer=bountyOffer(game,school,tier);
   if (!offer) return fail('Choose a valid school and material tier.');
   if (!offer.ok) return fail(offer.reason);
-  return startBattle(game,offer.enemy,{kind:'bounty',id:`bounty-${school}-${tier}`,school,tier,enemy:offer.enemy.id},offer.scale);
+  // On the Honest Ledger the seed comes from the server, so the battle can be replayed there before rewards are minted.
+  const context={kind:'bounty',id:`bounty-${school}-${tier}`,school,tier,enemy:offer.enemy.id,...(ledger&&{seed:ledger.seed,battleId:ledger.battleId})};
+  return startBattle(game,offer.enemy,context,offer.scale);
+}
+
+/** The battle a commission starts, rebuilt from its inputs (the server's proof-of-battle replay uses this). */
+export function commissionCombat({school,tier,difficulty,inputs,seed}) {
+  if (!schools.some(entry=>entry.id===school) || !Number.isInteger(tier) || tier<1 || tier>5) return null;
+  const enemy=enemies[Math.min(enemies.length-1,(tier-1)*7+stableHash(school)%5)];
+  return createCombat({cards:cardById, ...inputs, enemy:scaledEnemy(enemy, 1+(tier-1)*.13, difficulty === 'tribulation'), seed});
+}
+
+/** Replays a commission's recorded actions. A win is proven only if every action was legal and the enemy fell. */
+export function replayCommission({school,tier,difficulty,inputs,seed,actions}) {
+  const combat=commissionCombat({school,tier,difficulty,inputs,seed});
+  if (!combat || !Array.isArray(actions) || actions.length>2000) return {ok:false,reason:'BAD_BATTLE'};
+  for (const entry of actions) {
+    if (!Array.isArray(entry) || combat.outcome) return {ok:false,reason:'BAD_BATTLE'};
+    const [action,input]=entry;
+    const item=action==='use'?itemById[input]:null;
+    const result=action==='play'?playCard(combat,input):action==='end'?endTurn(combat):action==='pet'?usePetAbility(combat,input)
+      :action==='use'&&['pill','talisman'].includes(item?.type)&&item.effects?.length?useConsumable(combat,item.effects,item.name):fail('Unknown battle action.');
+    if (!result?.ok) return {ok:false,reason:'ILLEGAL_ACTION'};
+  }
+  return combat.outcome==='victory'?{ok:true,rewards:economy.bountyRewards(school,tier),hp:combat.player.hp}:{ok:false,reason:combat.outcome==='defeat'?'DEFEATED':'UNFINISHED'};
 }
 
 function scaledEnemy(enemy, scale, tribulation) {
@@ -280,6 +309,12 @@ function scaledEnemy(enemy, scale, tribulation) {
 export function fight(game, action, input) {
   const combat = game.active?.combat;
   if (!combat || combat.outcome) return fail('There is no active battle.');
+  const result = battleStep(game, combat, action, input);
+  if (result.ok && Array.isArray(game.active.actions)) game.active.actions.push([action, input ?? null]); // for replay
+  return result;
+}
+
+function battleStep(game, combat, action, input) {
   if (action === 'play') return playCard(combat, input);
   if (action === 'end') return endTurn(combat);
   if (action === 'pet') return usePetAbility(combat,input);

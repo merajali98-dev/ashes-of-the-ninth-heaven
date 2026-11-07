@@ -157,3 +157,33 @@ test('guest creation is rate limited per address', async () => {
     assert.deepEqual(statuses, [200, 200, 200, 200, 200, 200, 200, 200, 429]);
   } finally { await h.close(); }
 });
+
+test('a commission on the ledger is replayed by the server before its rewards are minted, once', async () => {
+  const rules = await import('../js/progression.js');
+  const h = await harness();
+  try {
+    const c = h.client();
+    await c.post('/api/auth/guest', {});
+    await c.post('/api/seal', {publicKey: KEY});
+    const game = rules.freshGame(42);
+    rules.begin(game, 'Shen', 'wayfarer');
+    const dealt = (await c.post('/api/battle/start', {school: 'ember', tier: 1, inputs: rules.battleInputs(game), difficulty: game.difficulty})).json;
+    assert.ok(dealt.battleId && Number.isSafeInteger(dealt.seed));
+    rules.startBounty(game, 'ember', 1, dealt);
+    const combat = game.active.combat;
+    for (let guard = 0; guard < 600 && !combat.outcome; guard++) {
+      let played = false;
+      for (let i = 0; i < combat.hand.length && !played; i++) played = rules.fight(game, 'play', i).ok;
+      if (!played) rules.fight(game, 'end');
+    }
+    assert.equal(combat.outcome, 'victory', 'the autopilot wins a tier-1 commission');
+    const forged = await c.post('/api/battle/claim', {battleId: dealt.battleId, actions: game.active.actions.slice(0, 2)});
+    assert.equal(forged.status, 409, 'a log that does not end in a win proves nothing');
+    const claim = await c.post('/api/battle/claim', {battleId: dealt.battleId, actions: game.active.actions});
+    assert.deepEqual(claim.json.granted, {jade: 1300, 'mat:seal-jade-1': 8, 'mat:essence-ember-1': 3});
+    assert.equal(h.chain.calls.grants.at(-1).entries.length, 3);
+    assert.match(h.chain.calls.grants.at(-1).memo, /battle replayed/);
+    assert.equal((await c.post('/api/battle/claim', {battleId: dealt.battleId, actions: game.active.actions})).json.error, 'ALREADY_CLAIMED');
+    assert.equal((await h.client().post('/api/battle/claim', {battleId: dealt.battleId, actions: []})).json.error, 'SIGN_IN');
+  } finally { await h.close(); }
+});

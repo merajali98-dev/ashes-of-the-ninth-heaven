@@ -207,3 +207,37 @@ export async function cancelListing(game, listing) {
   await refresh();
   return {ok: true, record: result.tx};
 }
+
+// ------------------------------------------------------------------ commissions: proof of battle
+
+/** Before a commission on the ledger: the server deals the seed and keeps the battle's inputs. */
+export async function startCommission(school, tier, inputs, difficulty) {
+  try { return await post('/api/battle/start', {school, tier, inputs, difficulty}); }
+  catch (error) { return {error: error.code || 'SERVER'}; }
+}
+
+/**
+ * After a won commission: its rewards are already in the save. They are taken out of the "changes to record" (the
+ * server mints them itself after replaying the battle) and put back out of the save if the replay is refused.
+ */
+export async function claimCommission(game, battleId, actions, before) {
+  if (!ledger.active || !game.ledgerSeal?.mirror) return null;
+  const now = holdings(game), gained = {};
+  for (const [token, n] of Object.entries(now)) if (n > (before[token] ?? 0)) gained[token] = n - (before[token] ?? 0);
+  game.ledgerSeal.mirror = {...game.ledgerSeal.mirror, ...Object.fromEntries(Object.entries(gained).map(([t, n]) => [t, (game.ledgerSeal.mirror[t] ?? 0) + n]))};
+  ledger.balances = {...ledger.balances, ...game.ledgerSeal.mirror};
+  try {
+    await post('/api/battle/claim', {battleId, actions});
+    return null;
+  } catch (error) {
+    const back = {...game.ledgerSeal.mirror};
+    for (const [t, n] of Object.entries(gained)) back[t] = Math.max(0, (back[t] ?? 0) - n);
+    game.ledgerSeal.mirror = back;
+    ledger.balances = {...ledger.balances, ...back};
+    write(game, back);
+    return error.code || 'SERVER';
+  }
+}
+
+/** The save's ledger goods and jade right now (for "before the reward"). */
+export const snapshotHoldings = game => holdings(game);

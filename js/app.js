@@ -429,6 +429,14 @@ function activate(action,id = '') {
     case 'bounty-tier': ui.tier=Number(id);render();break;
     case 'start-bounty': {
       const [school,tier]=id.split(':');
+      if(ledger.isActive()&&gameRules.bountyOffer(game,school,Number(tier))?.ok){
+        // On the Honest Ledger the server deals the seed, so it can replay the battle before minting the rewards.
+        ledger.startCommission(school,Number(tier),gameRules.battleInputs(game),game.difficulty).then(seal=>{
+          if(seal.error)notify('The Honest Ledger could not open this commission, so its rewards will be capped.',true);
+          change(action,gameRules.startBounty(game,school,Number(tier),seal.error?null:seal),'battle');
+        });
+        break;
+      }
       change(action,gameRules.startBounty(game,school,Number(tier)),'battle');break;
     }
     case 'open-shop':
@@ -573,7 +581,11 @@ function activate(action,id = '') {
     case 'resolve': {
       const kind = game.active?.kind;
       const defeated = game.active?.combat?.outcome === 'defeat';
+      const proof=ledger.isActive()&&kind==='bounty'&&game.active?.battleId&&game.active.combat?.outcome==='victory'
+        ?{battleId:game.active.battleId,actions:game.active.actions.slice(),before:ledger.snapshotHoldings(game)}:null;
       const result = gameRules.resolveEncounter(game,id);
+      if(proof&&result.ok)ledger.claimCommission(game,proof.battleId,proof.actions,proof.before).then(code=>{if(!code)return;gameRules.writeSave(storage,game);render();
+        notify('The Honest Ledger could not confirm that battle, so its rewards were not kept.',true)});
       const next = defeated || result.epilogue ? 'home' : kind === 'trial' ? 'trial' : kind==='bounty'?'bounties':'campaign';
       if (change(action,result,next) && result.epilogue) {
         openDialog({title:result.ending,subtitle:'THE FIRST UNTAXED DAWN',body:
