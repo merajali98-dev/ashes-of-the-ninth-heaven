@@ -24,8 +24,7 @@ install -d -m 750 -o root -g ashes /etc/ashes
 
 # Server secrets are made once here and never leave the VM (they encrypt players' recovery keys).
 if [ ! -f /etc/ashes/secrets.env ]; then
-  umask 027
-  printf 'ASHES_MASTER_KEY=%s\nASHES_HMAC_KEY=%s\n' "$(openssl rand -base64 32)" "$(openssl rand -base64 32)" > /etc/ashes/secrets.env
+  (umask 077; printf 'ASHES_MASTER_KEY=%s\nASHES_HMAC_KEY=%s\n' "$(openssl rand -base64 32)" "$(openssl rand -base64 32)" > /etc/ashes/secrets.env)
   chown root:ashes /etc/ashes/secrets.env
   chmod 640 /etc/ashes/secrets.env
 fi
@@ -40,6 +39,7 @@ mkdir -p "$RELEASE"
 tar -xzf "$TARBALL" -C "$RELEASE"
 rm -f "$TARBALL"
 (cd "$RELEASE" && npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+chmod 755 /opt/ashes /opt/ashes/releases && chmod -R u+rwX,go+rX,go-w "$RELEASE"   # readable by the service user, writable only by root
 ln -sfn "$RELEASE" /opt/ashes/app
 ls -1dt /opt/ashes/releases/* | tail -n +4 | xargs -r rm -rf   # keep the last three releases
 
