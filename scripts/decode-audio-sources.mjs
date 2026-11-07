@@ -1,6 +1,6 @@
 // Decode selected CC0 OGG using the same native browser decoder used by the game.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
-import {chromium} from 'file:///C:/Users/Arash%20Mohsin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
+import {chromium} from '../tests/playwright.mjs';
 const sources=JSON.parse(await readFile('tmp/audio-source/selected.json','utf8'));
 const browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});
 try {

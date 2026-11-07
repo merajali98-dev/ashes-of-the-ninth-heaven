@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'file:///C:/Users/Arash%20Mohsin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
+import {chromium} from './playwright.mjs';
 import * as rules from '../js/progression.js';
 
 // Manual UI regression; start PORT=4181 node server.js first.
@@ -15,7 +15,10 @@ try {
   await page.goto('http://127.0.0.1:4181');
   const saved=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)),rules.SAVE_KEY);
   const load=async game=>{await page.evaluate(({key,game})=>localStorage.setItem(key,JSON.stringify(game)),{key:rules.SAVE_KEY,game});await page.reload();};
-  const nav=async id=>{await page.locator(`[data-action="nav"][data-id="${id}"]`).first().click();};
+  // On small screens five places live under More in the dock (css/calm.css).
+  const nav=async id=>{const button=page.locator(`[data-action="nav"][data-id="${id}"]`).first();
+    if(await button.isVisible())await button.click();
+    else{await page.locator('[data-action="dock-more"]').click();await page.locator(`.dock-more-sheet [data-id="${id}"]`).click();}};
   const tab=async id=>{await page.locator(`[data-action="tab"][data-id="${id}"]`).click();};
   const close=async()=>{if(await page.locator('#dialog[open]').count())await page.locator('#dialog [data-action="close"]').first().click();};
   const search=async text=>{await page.locator('input[name="query"]').fill(text);await page.locator('form[data-form="search"] button').click();};

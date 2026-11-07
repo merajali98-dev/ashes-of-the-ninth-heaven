@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'file:///C:/Users/Arash%20Mohsin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
+import {chromium} from './playwright.mjs';
 import * as rules from '../js/progression.js';
 import {cardForm,CARD_TYPES} from '../js/card-frame.js';
 import {captureCombatEvents} from '../js/combat.js';

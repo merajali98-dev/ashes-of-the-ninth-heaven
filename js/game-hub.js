@@ -19,6 +19,11 @@ const navArt = {
 };
 const currency = (glyph,n,label) => `<span class="currency-gem" title="${label}">${icon(glyph)}<b>${n}</b></span>`;
 
+// On phones and tablets the dock shows four main places plus More (css/calm.css); desktop shows every place.
+const DOCK_SECONDARY = new Set(['inventory','forge','pets','trial','codex']);
+const dockButton = (id,glyph,label,page,inSheet=false) => `<button data-action="${inSheet ? 'dock-go' : 'nav'}" data-id="${id}" class="dock-button ${!inSheet && DOCK_SECONDARY.has(id) ? 'dock-secondary' : ''} ${id === page ? 'selected' : ''}" ${id === page ? 'aria-current="page"' : ''}>
+        <span class="dock-icon">${picture(art(navArt[id]))}${icon(glyph)}</span><b>${label}</b></button>`;
+
 export function shell(game,page) {
   const combat = game.active?.combat;
   return `<div class="game-shell page-${esc(page)}">
@@ -32,9 +37,10 @@ export function shell(game,page) {
         <button class="icon-btn" data-action="settings" aria-label="Settings">${icon('gear')}</button></div>
     </header>
     <main id="screen" tabindex="-1" data-page="${esc(page)}"></main>
-    ${game.active ? '' : `<nav class="game-dock" aria-label="Game navigation">${views.NAV.map(([id,glyph,label]) =>
-      `<button data-action="nav" data-id="${id}" class="dock-button ${id === page ? 'selected' : ''}" ${id === page ? 'aria-current="page"' : ''}>
-        <span class="dock-icon">${picture(art(navArt[id]))}${icon(glyph)}</span><b>${label}</b></button>`).join('')}</nav>`}
+    ${game.active ? '' : `<nav class="game-dock" aria-label="Game navigation">${views.NAV.map(([id,glyph,label]) => dockButton(id,glyph,label,page)).join('')}
+      <button type="button" data-action="dock-more" class="dock-button dock-more ${DOCK_SECONDARY.has(page) ? 'selected' : ''}" aria-expanded="false" aria-controls="dock-more-sheet">
+        <span class="dock-icon">${icon('menu')}</span><b>More</b></button>
+      <div class="dock-more-sheet" id="dock-more-sheet">${views.NAV.filter(([id]) => DOCK_SECONDARY.has(id)).map(([id,glyph,label]) => dockButton(id,glyph,label,page,true)).join('')}</div></nav>`}
   </div>`;
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'file:///C:/Users/Arash%20Mohsin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
+import {chromium} from './playwright.mjs';
 import * as rules from '../js/progression.js';
 
 // Manual UI regression: start the isolated server on PORT=4181 first.
@@ -14,7 +14,9 @@ try {
   page.on('response',response=>{if(response.status()>=400)httpErrors.push(`${response.status()} ${response.url()}`)});
   const saved=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)),rules.SAVE_KEY);
   const settleCombat=()=>page.waitForFunction(()=>document.querySelector('#app').getAttribute('aria-busy')!=='true');
-  const nav=async id=>page.locator(`[data-action="nav"][data-id="${id}"]`).first().click();
+  const nav=async id=>{const button=page.locator(`[data-action="nav"][data-id="${id}"]`).first();
+    if(await button.isVisible())return button.click();
+    await page.locator('[data-action="dock-more"]').click();return page.locator(`.dock-more-sheet [data-id="${id}"]`).click();};
   const close=async()=>{if(await page.locator('#dialog[open]').count())await page.locator('#dialog [data-action="close"]').first().click();};
   const shot=async name=>page.screenshot({path:fileURLToPath(new URL(name+'.png',output)),fullPage:false});
   const load=async game=>{await page.evaluate(({key,game})=>localStorage.setItem(key,JSON.stringify(game)),{key:rules.SAVE_KEY,game});await page.reload();};

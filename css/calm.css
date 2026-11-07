@@ -1,0 +1,21 @@
+/* Calm UI (internal/14): fewer choices on small screens, larger small print, shorter lines. Layout only; no rules. */
+
+/* Larger small print everywhere: the game's fine text was 10-11px. */
+.microcopy{font-size:.86rem;line-height:1.5}
+.dialog-body p,.dialog-lead{line-height:1.55}
+.dialog-body p{max-width:64ch}
+.stall-table small,.quick-name small,.quick-price small,.merchant-card small{font-size:.78rem}
+.price-tip-layer{font-size:.9rem}
+
+/* The bottom bar: on phones and tablets, four main places plus More; the rest open from More. Desktop shows all nine. */
+.dock-more,.dock-more-sheet{display:none}
+@media(max-width:1099px){
+  .game-dock .dock-button.dock-secondary{display:none}
+  .game-dock .dock-more{display:flex}
+  .game-dock.more-open .dock-more-sheet{display:grid}
+  .dock-more-sheet{position:absolute;bottom:calc(100% + 8px);right:8px;grid-template-columns:repeat(3,minmax(84px,1fr));gap:6px;padding:10px;
+    border:1px solid var(--gold);border-radius:12px;background:linear-gradient(160deg,#1f1c25,#16141b);box-shadow:0 12px 32px #000c;z-index:30}
+  .dock-more-sheet .dock-button{display:flex;min-width:0}
+  .game-dock{position:relative}
+  .dock-button b{font-size:.72rem}
+}

@@ -527,6 +527,9 @@ function activate(action,id = '') {
       const result=gameRules.deleteDeck(game,id);if(result.ok)closeDialog();change(action,result);break;
     }
     case 'settings': settings(); break;
+    case 'dock-go': navigate(id); break;
+    case 'open-market': navigate('market'); break;
+    case 'dock-more': {const dock=root.querySelector('.game-dock'),open=!dock?.classList.contains('more-open');dock?.classList.toggle('more-open',open);root.querySelector('[data-action="dock-more"]')?.setAttribute('aria-expanded',String(open));break;}
     case 'seal-open': sealFlow={};openSeal(); break;
     case 'seal-back': sealFlow={name:sealFlow.name};openSeal(); break;
     case 'seal-use-code': sealFlow.code=id;openSeal(); break;
@@ -859,7 +862,8 @@ online.load().then(async state=>{
     try{await online.ensureSeal()}catch(error){notify(sealError(error),true)}
     await syncLedger();if(page!=='market')navigate('market');notify('Signed in. Your seal is pressed.')}
   else if(state.signedIn&&state.ledger&&state.user?.seal){await online.ensureSeal().catch(()=>{});await syncLedger()}
-  render();
+  // Re-render only if this changes what is on screen (the seal chip lives on the market page).
+  if(state.signedIn||page==='market')render();
 });
 // The practice market runs in this browser: one market hour per real minute, caught up on return.
 const away=market.advance(game,Date.now());

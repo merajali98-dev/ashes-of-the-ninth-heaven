@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdir,readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'file:///C:/Users/Arash%20Mohsin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
+import {chromium} from './playwright.mjs';
 import * as rules from '../js/progression.js';
 import {cardForm,CARD_TYPES} from '../js/card-frame.js';
 import {TYPE_EFFECTS} from '../js/battle-fx.js';
@@ -166,7 +166,7 @@ try {
     assert.fail(`No native started cue: ${cue}`);
   };
   const shopper=ready();shopper.sound=true;shopper.audioSettings={...preferences};shopper.jade=10000;
-  await load(shopper);await page.locator('[data-action="nav"][data-id="market"]').click();
+  await load(shopper);await page.locator('[data-action="nav"][data-id="market"]').click();await page.locator('[data-action="tab"][data-id="cards"]').click();
   const affordable=rules.cards.find(card=>quoteBuyCard(shopper,card.id).ok);
   await page.locator(`[data-action="shop-inspect"][data-id="${affordable.id}"]`).click();await warm();
   await page.locator('#dialog [data-action="purchase-card"]:not([disabled])').click();await startedCue('purchase');

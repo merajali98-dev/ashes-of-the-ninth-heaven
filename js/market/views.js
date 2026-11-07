@@ -225,7 +225,7 @@ export function marketTeaser(game) {
       note = `${FAMILY_LABEL[family]} ${bid.bid * R.BPS / token.base > 8_700 ? 'dear' : 'cheap'} at ${marketWorld(game).merchants[bid.merchant].name}'s`;
     }
   }
-  return `<button class="shrine-action shrine-market" data-action="nav" data-id="market">${picture('assets/art/sect-neutral.webp')}<span>${icon('market')} Night Bazaar <b>${esc(note)}</b></span></button>`;
+  return `<button class="shrine-action shrine-market" data-action="open-market" data-id="market">${picture('assets/art/sect-neutral.webp')}<span>${icon('market')} Night Bazaar <b>${esc(note)}</b></span></button>`;
 }
 
 /**

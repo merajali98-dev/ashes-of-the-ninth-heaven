@@ -19,7 +19,7 @@ The [complete final source prompt set](expansion-art-prompts.md) records every a
 
 ## Source sheets and crop order
 
-The 30 approved source sheets were visually checked for subject order and regular cell boundaries. Each row-major cell is saved under its matching card ID. Source binaries remain in `C:/Users/Arash Mohsin/.codex/generated_images/01a1aac4-ecba-7de2-8fea-5b784de96282/` and are not duplicated in served assets.
+The 30 approved source sheets were visually checked for subject order and regular cell boundaries. Each row-major cell is saved under its matching card ID. The original source sheets are kept outside the repository and are not duplicated in served assets.
 
 | Atlas | Original PNG | First card | Last card |
 | --- | --- | --- | --- |
