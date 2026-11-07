@@ -6,6 +6,7 @@ import {addActor, createWorld, endHour, invest, quoteFor, trade} from './engine.
 import {npcHour, populate} from './npc.js';
 import {materialRequirement} from '../economy.js';
 import {cultivationLevel} from '../cultivation.js';
+import {invest as ledgerInvest, isActive as onLedger, overlay, trade as ledgerTrade} from '../online/ledger.js';
 
 export const HOUR_MS = 60_000;
 export const LIVE_CAST = Object.freeze({wanderers: 6, flooder: false, speculator: true, patron: true, forgeMaster: true});
@@ -66,11 +67,12 @@ function syncOut(game, world) {
 export function marketWorld(game, now = Date.now()) {
   const world = worlds.get(game) ?? hydrate(game, now);
   syncIn(game, world);
-  return world;
+  return onLedger() ? overlay(world) : world; // sealed: the merchants are the ledger's
 }
 
 /** Let market hours pass up to `now`. Returns what happened, for "While you were away". */
 export function advance(game, now) {
+  if (onLedger()) return {hours: 0, events: []}; // the ledger keeps its own time
   const world = marketWorld(game, now);
   const due = Math.floor((now - (game.market.lastHourAt ?? now)) / HOUR_MS);
   if (due <= 0) return {hours: 0, events: []};
@@ -99,6 +101,14 @@ export function playerTrade(game, merchantId, tokenId, side, qty = 1) {
   const world = marketWorld(game);
   const q = playerQuote(game, merchantId, tokenId, side, qty);
   if (!q.ok) return {ok: false, reason: q.reason};
+  if (onLedger()) {
+    // Sealed: the same checks, then the trade is signed in this browser and recorded on the Honest Ledger.
+    const actor = world.actors[PLAYER], name = world.tokens[tokenId].name, who = world.merchants[merchantId].name;
+    if (side === 'sell' && (actor.items[tokenId] ?? 0) < qty) return {ok: false, reason: `You don't have ${qty} to sell.`};
+    if (side === 'buy' && actor.cash < q.total) return {ok: false, reason: `You need ${R.jade(q.total - actor.cash)} more jade.`};
+    return ledgerTrade(game, merchantId, tokenId, side, qty).then(done => !done.ok ? done : {ok: true, quote: {total: done.total}, record: done.record,
+      message: side === 'sell' ? `Sold ${qty} ${name} to ${who} for ${R.jade(done.total)} jade.` : `Bought ${qty} ${name} from ${who} for ${R.jade(done.total)} jade.`});
+  }
   const done = trade(world, PLAYER, merchantId, tokenId, side, qty);
   if (!done.ok) return {ok: false, reason: done.reason};
   syncOut(game, world);
@@ -112,6 +122,12 @@ export function playerInvest(game, merchantId, jade) {
   const reason = blocked(game);
   if (reason) return {ok: false, reason};
   const world = marketWorld(game), cents = Math.round(jade * R.CENTS);
+  if (onLedger()) {
+    const m = world.merchants[merchantId];
+    if (world.actors[PLAYER].cash < cents) return {ok: false, reason: 'Not enough jade.'};
+    return ledgerInvest(game, merchantId, cents).then(done => !done.ok ? done : {ok: true, record: done.record,
+      message: done.closed ? `You put ${R.jade(cents)} jade toward rekindling ${m.name}'s shop.` : `You are now a patron of ${m.name}.`});
+  }
   const done = invest(world, PLAYER, merchantId, cents);
   if (!done.ok) return {ok: false, reason: done.reason};
   syncOut(game, world);

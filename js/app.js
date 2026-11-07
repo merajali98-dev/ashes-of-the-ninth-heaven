@@ -15,6 +15,7 @@ import {runFastForward} from './market/fastforward.js';
 import {installPriceTooltips} from './market/tooltip.js';
 import * as online from './online/session.js';
 import * as onlineViews from './online/views.js';
+import * as ledger from './online/ledger.js';
 
 const root = document.querySelector('#app');
 const toast = document.querySelector('#toast');
@@ -162,6 +163,18 @@ function persist() {
     saveWarningShown = true;
     notify('This browser could not save your progress.',true);
   }
+  // Sealed: goods and jade that moved outside the market are recorded on the Honest Ledger.
+  if(ledger.isActive())ledger.reconcile(game).then(code=>{if(!code)return;gameRules.writeSave(storage,game);render();
+    notify(code==='REWARD_CAP'?'The Honest Ledger records only so many rewards an hour. That one was not kept.':'The Honest Ledger could not record that change, so it was undone.',true)});
+}
+/** Loads the ledger's market and the player's balances into the save (when the seal is pressed). */
+async function syncLedger(){
+  await ledger.refresh();
+  if(!ledger.isActive())return false;
+  market.marketWorld(game);
+  if(!ledger.ledger.syncing)ledger.applyToSave(game);
+  gameRules.writeSave(storage,game);
+  return true;
 }
 
 function interactionSound(action) {
@@ -299,6 +312,7 @@ async function sealStep(signIn){
     await signIn();
     if(online.state.ledger&&online.state.signedIn&&!online.state.user?.seal)await online.ensureSeal(name);
     else if(online.state.ledger&&online.state.signedIn)await online.ensureSeal();
+    await syncLedger();
     sealFlow={};openSeal();render();
     notify(online.state.user?.seal?'Your seal is pressed. The Honest Ledger will record your trades.':'Signed in.');
   }catch(error){sealFlow.busy=false;openSeal();notify(sealError(error),true)}
@@ -431,11 +445,13 @@ function activate(action,id = '') {
     }
     case 'market-sell':case 'market-buy': {
       const [merchantId,token,quantity]=id.split('|');
-      change(action,market.playerTrade(game,merchantId,token,action==='market-sell'?'sell':'buy',Number(quantity)));break;
+      const result=market.playerTrade(game,merchantId,token,action==='market-sell'?'sell':'buy',Number(quantity));
+      if(result instanceof Promise){notify('Recording the trade on the Honest Ledger…');result.then(r=>change(action,r))}else change(action,result);break;
     }
     case 'market-invest': {
       const [merchantId,jade]=id.split('|');
-      change(action,market.playerInvest(game,merchantId,Number(jade)));break;
+      const result=market.playerInvest(game,merchantId,Number(jade));
+      if(result instanceof Promise){notify('Recording it on the Honest Ledger…');result.then(r=>change(action,r))}else change(action,result);break;
     }
     case 'sim-scenario':
       simScenario=Object.hasOwn(SIM_SCENARIOS,id)?id:'week';simParams=structuredClone(SIM_SCENARIOS[simScenario]);ui.simScenario=simScenario;rerunSim();ui.simPlaying=true;startSim();render();break;
@@ -499,7 +515,7 @@ function activate(action,id = '') {
       const code=dialog.querySelector('#seal-code')?.value.trim()||'';
       sealStep(()=>online.emailVerify(sealFlow.email,code));break;
     }
-    case 'seal-signout': online.signOut().then(()=>{sealFlow={};closeDialog();render();notify('Signed out on this device. Your seal is kept on the Honest Ledger.')}); break;
+    case 'seal-signout': online.signOut().then(()=>{sealFlow={};ledger.restorePractice(game);gameRules.writeSave(storage,game);closeDialog();render();notify('Signed out on this device. Your seal is kept on the Honest Ledger.')}); break;
     case 'audio-preview': {
       const intent=++audioIntent;
       void warmAudio().then(()=>{if(intent===audioIntent&&game.sound)playSound('sound-preview',{scope:'preview',priority:5})});
@@ -802,8 +818,8 @@ online.load().then(async state=>{
   if(location.hash==='#signin-expired'){history.replaceState(null,'',location.pathname);notify('That sign-in link has expired or was already used. Ask for a new code.',true)}
   else if(location.hash==='#market'&&state.signedIn){history.replaceState(null,'',location.pathname);
     try{await online.ensureSeal()}catch(error){notify(sealError(error),true)}
-    if(page!=='market')navigate('market');notify('Signed in. Your seal is pressed.')}
-  else if(state.signedIn&&state.ledger&&state.user?.seal)online.ensureSeal().catch(()=>{});
+    await syncLedger();if(page!=='market')navigate('market');notify('Signed in. Your seal is pressed.')}
+  else if(state.signedIn&&state.ledger&&state.user?.seal){await online.ensureSeal().catch(()=>{});await syncLedger()}
   render();
 });
 // The practice market runs in this browser: one market hour per real minute, caught up on return.
@@ -814,6 +830,7 @@ render();
 notify(warning,true);
 if(game.started&&!game.active&&page!=='market-sim'&&away.hours>=15)openDialog(marketViews.awayDialog(away));
 setInterval(()=>{
+  if(ledger.isActive()){syncLedger().then(()=>{if(page==='market'&&!dialog.open&&!combatBusy&&!root.querySelector('.price-tip:hover,.price-tip:focus'))render()});return}
   const passed=market.advance(game,Date.now());
   if(!passed.hours)return;
   persist();

@@ -8,6 +8,12 @@ import {mailConfigured, sendSignInMail} from './mail.js';
 import {privateId} from './secrets.js';
 import {ChainError} from './chain/service.js';
 import {WELCOME} from './grants.js';
+import {MARKET_TOKENS} from '../js/market/tokens.js';
+
+const LEDGER_TOKENS = ['jade', ...Object.keys(MARKET_TOKENS)];
+// What one account may add to its holdings per hour without a market trade (battle rewards, selling gear). Day 7 adds
+// battle replay; until then this cap bounds what an edited save could claim.
+const SYNC_CAP = {jade: 200_000, units: 150};
 
 const SESSION = 'ashes_session', SESSION_DAYS = 30, CODE_MINUTES = 15;
 const NAME = /^[a-z][a-z0-9-]{2,18}[a-z0-9]$/;
@@ -164,6 +170,45 @@ export function createApi({store, chain, googleKeys} = {}) {
       const user = needSeal(req);
       limit('relay:' + user.id, 30, 60e3);
       return chain.relay(user.player, body);
+    },
+
+    // The market as the ledger has it: nine merchants' books, and (when sealed) the player's balances.
+    'GET /api/ledger': async req => {
+      const user = currentUser(req);
+      const market = await chain.market();
+      const balances = user?.player ? await chain.balances(user.player.accountId, LEDGER_TOKENS) : null;
+      return {ledger: {...market, balances, seal: user?.player?.accountId ?? null, contract: chain.contract}};
+    },
+
+    'GET /api/ledger/quote': async (req, _body, url) => {
+      const user = needSeal(req);
+      const side = url.searchParams.get('side') === 'buy' ? 'buy' : 'sell';
+      const amount = String(Math.max(1, Math.floor(Number(url.searchParams.get('n')) || 1)));
+      return {ledger: await chain.quote({merchant_id: url.searchParams.get('m') || '', token_id: url.searchParams.get('t') || '', side, amount, account_id: user.player.accountId})};
+    },
+
+    // Rewards and costs that happen outside the market (battle drops, forging, gear sales) are recorded on the ledger.
+    'POST /api/ledger/sync': async (req, body) => {
+      const user = needSeal(req);
+      limit('sync:' + user.id, 60, 60e3);
+      const clean = map => Object.entries(map && typeof map === 'object' ? map : {})
+        .map(([tokenId, n]) => [tokenId, Math.floor(Number(n))]).filter(([tokenId, n]) => LEDGER_TOKENS.includes(tokenId) && n > 0 && n < 1e9);
+      const gains = clean(body.gains), spends = clean(body.spends);
+      if (!gains.length && !spends.length) throw new HttpError(400, 'NOTHING');
+      const id = user.player.accountId, hour = Math.floor(Date.now() / 3600e3);
+      const used = data.syncs?.[id]?.hour === hour ? data.syncs[id] : {hour, jade: 0, units: 0};
+      const jade = gains.filter(([t]) => t === 'jade').reduce((a, [, n]) => a + n, 0), units = gains.filter(([t]) => t !== 'jade').reduce((a, [, n]) => a + n, 0);
+      if (used.jade + jade > SYNC_CAP.jade || used.units + units > SYNC_CAP.units) throw new HttpError(429, 'REWARD_CAP');
+      if (spends.length) {
+        const have = await chain.balances(id, spends.map(([t]) => t));
+        if (spends.some(([t, n]) => have[t] < n)) throw new HttpError(409, 'NOT_HELD');
+      }
+      const reason = String(body.reason || 'the game').slice(0, 60);
+      chain.grant(gains.map(([tokenId, amount]) => ({accountId: id, tokenId, amount})), reason);
+      chain.burn(spends.map(([tokenId, amount]) => ({accountId: id, tokenId, amount})), reason);
+      (data.syncs ??= {})[id] = {hour, jade: used.jade + jade, units: used.units + units};
+      store.save();
+      return {ok: true};
     },
 
     'GET /api/status': async () => ({...(await chain.report()), players: Object.keys(data.users).length,

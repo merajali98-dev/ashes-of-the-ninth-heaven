@@ -1,0 +1,166 @@
+// The market as the Honest Ledger has it, mirrored into the browser while the player's seal is pressed.
+//  • The nine merchants' books come from the contract (through /api/ledger); prices and reasons are computed here from
+//    the same merchant-rules.js the contract was generated from, so tooltips stay instant.
+//  • The player's goods and jade in the save mirror their ledger balances. A trade is signed by the device key and
+//    relayed; rewards and costs outside the market (battle drops, forging, selling gear) are sent as grants and burns.
+//  • The practice purse is set aside when the seal is first used in this save and given back on sign-out.
+import {MARKET_TOKENS} from '../market/tokens.js';
+import * as R from '../market/merchant-rules.js';
+import {state as session, sealCall} from './session.js';
+
+export const ledger = {active: false, books: null, balances: null, contract: null, at: 0, error: null, syncing: 0};
+const TOKENS = Object.keys(MARKET_TOKENS);
+const PLAYER = 'player';
+
+export const isActive = () => ledger.active;
+
+async function get(path) {
+  const res = await fetch(path, {credentials: 'same-origin', headers: {'X-Ashes': '1'}});
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(json.error || 'SERVER'), {code: json.error || 'SERVER'});
+  return json.ledger;
+}
+async function post(path, body) {
+  const res = await fetch(path, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'X-Ashes': '1'}, body: JSON.stringify(body)});
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(json.error || 'SERVER'), {code: json.error || 'SERVER'});
+  return json;
+}
+
+/** Reads the ledger. The mirror is active only while the player is signed in with a pressed seal. */
+export async function refresh() {
+  if (!session.ledger || !session.user?.seal) { ledger.active = false; return ledger; }
+  try {
+    const data = await get('/api/ledger');
+    ledger.books = {tick: data.tick, testimonyBps: data.testimonyBps ?? 0, merchants: Object.fromEntries(data.merchants.map(m => [m.rules_id, m]))};
+    ledger.contract = data.contract;
+    if (data.balances) ledger.balances = data.balances;
+    ledger.active = Boolean(data.balances && data.contract);
+    ledger.at = Date.now();
+    ledger.error = null;
+  } catch (error) { ledger.error = error.code; }
+  return ledger;
+}
+
+/** A copy of the practice world whose merchants are the ledger's. Quotes on it equal the contract's (parity test). */
+export function overlay(world) {
+  if (!ledger.active) return world;
+  const markets = {...world.markets}, patrons = {...world.patrons};
+  for (const [id, b] of Object.entries(ledger.books.merchants)) {
+    const map = key => Object.fromEntries(b.goods.map(g => [g.token_id, Number(g[key])]));
+    markets[id] = {cash: Number(b.cash), stock: map('stock'), target: map('target'), baseTarget: map('base_target'),
+      flow: Object.fromEntries(b.goods.map(g => [g.token_id, g.flow])), closed: b.closed, specialty: b.specialty};
+    patrons[id] = Object.fromEntries(b.patrons.map(([who, cents]) => [who === session.user.seal.id ? PLAYER : who, Number(cents)]));
+  }
+  return {...world, markets, patrons, tick: ledger.books.tick, testimonyBps: ledger.books.testimonyBps};
+}
+
+const holdings = game => {
+  const out = {jade: game.jade * R.CENTS + (game.market?.fen ?? 0)};
+  for (const token of TOKENS) {
+    const [kind, id] = token.split(/:(.+)/);
+    out[token] = (kind === 'mat' ? game.materials?.[id] : game.bag?.[id]) ?? 0;
+  }
+  return out;
+};
+function write(game, balances) {
+  game.jade = Math.floor((balances.jade ?? 0) / R.CENTS);
+  if (game.market) game.market.fen = (balances.jade ?? 0) % R.CENTS;
+  game.materials ??= {};
+  game.bag ??= {};
+  for (const token of TOKENS) {
+    const [kind, id] = token.split(/:(.+)/), store = kind === 'mat' ? game.materials : game.bag, n = balances[token] ?? 0;
+    if (n > 0) store[id] = n; else delete store[id];
+  }
+}
+
+/** Puts the ledger balances into the save (the practice purse is kept aside the first time). */
+export function applyToSave(game) {
+  if (!ledger.active || !ledger.balances) return false;
+  const seal = session.user.seal.id;
+  if (game.ledgerSeal?.id !== seal) {
+    game.practicePurse ??= holdings(game);
+    game.ledgerSeal = {id: seal};
+  }
+  write(game, ledger.balances);
+  game.ledgerSeal.mirror = {...ledger.balances};
+  return true;
+}
+
+/** Signing out: the practice purse comes back. */
+export function restorePractice(game) {
+  ledger.active = false;
+  if (game.practicePurse) write(game, game.practicePurse);
+  delete game.practicePurse;
+  delete game.ledgerSeal;
+}
+
+/**
+ * After any change to the save: goods or jade that moved outside the market (a battle reward, forging, selling gear)
+ * are recorded on the ledger. Resolves to null, or to an error code if the ledger refused (the save is put back).
+ */
+export async function reconcile(game, reason = 'the game') {
+  if (!ledger.active || !game.ledgerSeal?.mirror) return null;
+  const before = game.ledgerSeal.mirror, now = holdings(game), gains = {}, spends = {};
+  for (const [token, n] of Object.entries(now)) {
+    const d = n - (before[token] ?? 0);
+    if (d > 0) gains[token] = d;
+    if (d < 0) spends[token] = -d;
+  }
+  if (!Object.keys(gains).length && !Object.keys(spends).length) return null;
+  game.ledgerSeal.mirror = now;
+  ledger.balances = {...ledger.balances, ...now};
+  ledger.syncing++;
+  try {
+    await post('/api/ledger/sync', {gains, spends, reason});
+    return null;
+  } catch (error) {
+    game.ledgerSeal.mirror = before;
+    ledger.balances = {...ledger.balances, ...before};
+    write(game, before);
+    return error.code || 'SERVER';
+  } finally { ledger.syncing--; }
+}
+
+const CODES = {PRICE_MOVED: 'Prices moved while you haggled. Look again and retry.', MERCHANT_CLOSED: 'That shop has closed.',
+  PURSE_EMPTY: 'The merchant cannot pay for that right now.', OUT_OF_STOCK: 'The merchant has run out.', STOREROOM_FULL: 'The storeroom is full.',
+  CLOSED: 'That shop has closed.', NOT_TRADED: 'This merchant does not trade that good.', BUSY: 'The Honest Ledger is busy. Try again in a minute.',
+  SLOW_DOWN: 'Too many trades at once. Wait a moment.', NOT_HELD: 'You do not hold that many.', OFFLINE: 'The Honest Ledger is closed right now.'};
+export const reasonFor = code => CODES[code] || 'The Honest Ledger could not record that trade. Try again.';
+
+/** A trade with a merchant on the ledger, at the contract's own quote. */
+export async function trade(game, merchantId, tokenId, side, qty) {
+  const books = ledger.books?.merchants[merchantId];
+  if (!books) return {ok: false, reason: reasonFor('OFFLINE')};
+  try {
+    const q = await get(`/api/ledger/quote?m=${encodeURIComponent(books.account_id)}&t=${encodeURIComponent(tokenId)}&side=${side}&n=${qty}`);
+    if (q.code !== 'OK') return {ok: false, reason: reasonFor(q.code)};
+    const limit = side === 'sell' ? {min_total: q.total} : {max_total: q.total};
+    const result = await sealCall(ledger.contract, side === 'sell' ? 'market_sell' : 'market_buy',
+      {merchant_id: books.account_id, token_id: tokenId, amount: String(qty), ...limit});
+    if (!result.ok) return {ok: false, reason: reasonFor(result.code)};
+    const total = Number(result.receipt?.total ?? q.total), sign = side === 'sell' ? 1 : -1;
+    const next = {...ledger.balances, jade: ledger.balances.jade + sign * total, [tokenId]: (ledger.balances[tokenId] ?? 0) - sign * qty};
+    ledger.balances = next;
+    write(game, next);
+    game.ledgerSeal.mirror = {...next};
+    refresh(); // the merchant's new books, in the background
+    return {ok: true, total, record: result.tx};
+  } catch (error) { return {ok: false, reason: reasonFor(error.code)}; }
+}
+
+/** Patronage or rekindling on the ledger. */
+export async function invest(game, merchantId, cents) {
+  const books = ledger.books?.merchants[merchantId];
+  if (!books) return {ok: false, reason: reasonFor('OFFLINE')};
+  try {
+    const result = await sealCall(ledger.contract, 'patron_invest', {merchant_id: books.account_id, amount: String(cents)});
+    if (!result.ok) return {ok: false, reason: reasonFor(result.code)};
+    const next = {...ledger.balances, jade: ledger.balances.jade - cents};
+    ledger.balances = next;
+    write(game, next);
+    game.ledgerSeal.mirror = {...next};
+    refresh();
+    return {ok: true, closed: books.closed, record: result.tx};
+  } catch (error) { return {ok: false, reason: reasonFor(error.code)}; }
+}

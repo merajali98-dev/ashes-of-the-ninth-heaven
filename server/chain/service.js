@@ -129,17 +129,29 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     store.save();
     const tx = result.transaction.hash;
     status.lastRelay = {at: Date.now(), tx};
+    forgetBooks();
     const failure = failureOf(result);
     if (failure) return {ok: false, code: codeOf(failure), tx};
     return {ok: true, receipt: valueOf(result, CONTRACT), tx};
   }
 
   /** Queues grants; they reach the chain within a few seconds, in order, exactly once. */
-  function grant(entries, memo) {
+  function enqueue(kind, entries, memo) {
     const mints = store.data.mints;
-    for (const e of entries) if (BigInt(e.amount) > 0n) mints.queue.push({account_id: e.accountId, token_id: e.tokenId, amount: String(e.amount), memo});
+    for (const e of entries) if (BigInt(e.amount) > 0n) mints.queue.push({kind, account_id: e.accountId, token_id: e.tokenId, amount: String(e.amount), memo});
     store.save();
     schedule();
+  }
+  const grant = (entries, memo) => enqueue('mint', entries, memo);
+  const burn = (entries, memo) => enqueue('burn', entries, memo);
+
+  /** Grants and burns queued for one account but not yet on the chain: {tokenId: signed delta}. */
+  function pendingFor(accountId) {
+    const out = {}, mints = store.data.mints;
+    const add = (kind, e) => { if (e.account_id === accountId) out[e.token_id] = (out[e.token_id] ?? 0) + (kind === 'burn' ? -1 : 1) * Number(e.amount); };
+    for (const e of mints.queue) add(e.kind ?? 'mint', e);
+    for (const e of mints.inflight?.mints ?? []) add(mints.inflight.kind ?? 'mint', e);
+    return out;
   }
   function schedule() {
     if (timer || !enabled) return;
@@ -153,29 +165,66 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     try {
       while (mints.inflight || mints.queue.length) {
         if (!mints.inflight) {
-          const batch = mints.queue.slice(0, BATCH);
+          // One kind per batch; a burn batch holds one account, so a stale burn can only fail its own owner's batch.
+          const kind = mints.queue[0].kind ?? 'mint';
+          let size = 0;
+          while (size < mints.queue.length && size < BATCH && (mints.queue[size].kind ?? 'mint') === kind &&
+            (kind === 'mint' || mints.queue[size].account_id === mints.queue[0].account_id)) size++;
+          const batch = mints.queue.slice(0, size);
           const seq = (await view('seq_of', {account_id: MINTER})) + 1;
-          mints.inflight = {seq, memo: batch[0].memo, mints: batch.map(({account_id, token_id, amount}) => ({account_id, token_id, amount}))};
-          mints.queue = mints.queue.slice(batch.length);
+          mints.inflight = {kind, seq, memo: batch[0].memo, mints: batch.map(({account_id, token_id, amount}) => ({account_id, token_id, amount}))};
+          mints.queue = mints.queue.slice(size);
           await store.save(); // the batch is written down before it is sent
         }
         const minter = await account(MINTER);
-        const {seq, mints: list, memo} = mints.inflight;
+        const {kind = 'mint', seq, mints: list, memo} = mints.inflight;
+        const method = kind === 'burn' ? 'game_burn_batch' : 'game_mint_batch';
         const result = await minter.signAndSendTransaction({receiverId: CONTRACT, waitUntil: 'EXECUTED_OPTIMISTIC', throwOnFailure: false,
-          actions: [actions.functionCall('game_mint_batch', {mints: list, seq, memo}, teraToGas(200), 0n)]});
+          actions: [actions.functionCall(method, {[kind === 'burn' ? 'burns' : 'mints']: list, seq, memo}, teraToGas(200), 0n)]});
         const failure = failureOf(result);
         if (failure && codeOf(failure) === 'SEQ_GAP') {
           // Someone else used the minter; renumber the same batch.
           mints.inflight.seq = (await view('seq_of', {account_id: MINTER})) + 1;
           continue;
         }
-        if (failure) throw new ChainError(codeOf(failure));
-        status.lastMint = {at: Date.now(), tx: result.transaction.hash, seq};
+        if (failure) {
+          // A batch the contract refuses (e.g. a burn larger than the balance) is set aside, not retried forever.
+          status.lastError = `${method} refused: ${codeOf(failure)}`;
+          (store.data.mints.refused ??= []).push({...mints.inflight, code: codeOf(failure), at: Date.now()});
+          store.data.mints.refused = store.data.mints.refused.slice(-20);
+          mints.inflight = null;
+          await store.save();
+          continue;
+        }
+        status.lastMint = {at: Date.now(), tx: result.transaction.hash, seq, kind};
         mints.inflight = null; // true = applied now, false = applied by an earlier attempt: done either way
         await store.save();
       }
     } finally { minting = false; }
   }
+
+  let books = {at: 0, value: null};
+  async function market() {
+    await need();
+    if (Date.now() - books.at < 3000 && books.value) return books.value;
+    const ids = await view('market_merchants');
+    const [tick, info] = await Promise.all([view('market_tick'), view('contract_info')]);
+    const merchants = [];
+    for (let i = 0; i < ids.length; i += 3) merchants.push(...await Promise.all(ids.slice(i, i + 3).map(id => view('market_merchant', {merchant_id: id}))));
+    books = {at: Date.now(), value: {tick, testimonyBps: info.testimony_bps ?? 0, merchants}};
+    return books.value;
+  }
+  async function balances(accountId, tokenIds) {
+    await need();
+    const amounts = await view('mt_batch_balance_of', {account_id: accountId, token_ids: tokenIds});
+    const pending = pendingFor(accountId);
+    return Object.fromEntries(tokenIds.map((id, i) => [id, Math.max(0, Number(amounts[i]) + (pending[id] ?? 0))]));
+  }
+  async function quote(args) {
+    await need();
+    return view('market_quote', args);
+  }
+  const forgetBooks = () => { books = {at: 0, value: null}; };
 
   async function report() {
     const base = {network: 'testnet', contract: CONTRACT, online: await online(), queuedGrants: store.data.mints.queue.length,
@@ -187,7 +236,8 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     } catch (error) { return {...base, rpcError: error.message}; }
   }
 
-  return {online, createPlayer, addDevice, prepare, relay, grant, flushMints, report, contract: CONTRACT, parent: PARENT};
+  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, quote, forgetBooks, report,
+    contract: CONTRACT, parent: PARENT};
 }
 
 function defaultEnabled() {
