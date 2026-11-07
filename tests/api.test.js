@@ -187,3 +187,13 @@ test('a commission on the ledger is replayed by the server before its rewards ar
     assert.equal((await h.client().post('/api/battle/claim', {battleId: dealt.battleId, actions: []})).json.error, 'SIGN_IN');
   } finally { await h.close(); }
 });
+
+test("a deed's picture is drawn from the ledger: name, status, vault and holder", async () => {
+  const {deedSvg} = await import('../server/api.js');
+  const market = {merchants: [{rules_id: 'lu-yan', name: 'Lu Yan', cash: '183416', closed: false, status: 'open'}],
+    deeds: [{token_id: 'deed:lu-yan', rules_id: 'lu-yan', owner_id: 'shen-luo.ashes-ninth.testnet', for_sale: null, vault: '1240', agent: false, owner_share_bps: 1000, held_by_ministry: false}]};
+  const svg = await deedSvg(market, 'lu-yan');
+  assert.match(svg, /^<svg/);
+  for (const text of ['Lu Yan', 'OPEN', '12.40 jade', 'shen-luo', 'the holder', '1,834.16 jade', 'data:image/webp;base64,']) assert.ok(svg.includes(text), text);
+  assert.equal(await deedSvg(market, 'nobody'), null);
+});

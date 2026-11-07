@@ -77,6 +77,19 @@ async function act(kind) {
     }
     return;
   }
+  if (kind === 'deed') {
+    const jadeNow = (await balances()).jade;
+    const deed = (ledger.deeds ?? []).find(d => d.for_sale && Number(d.for_sale) <= jadeNow && d.owner_id !== session.state.user.seal.id);
+    if (!deed) { log(false, 'No deed is for sale within this account’s jade right now.'); return; }
+    const bought = await session.sealCall(ledger.contract, 'deed_buy', {token_id: deed.token_id, max_price: deed.for_sale});
+    if (!bought.ok) { log(false, `Refused: ${esc(bought.code)}${txLink(bought.tx)}`); return; }
+    const relisted = await session.sealCall(ledger.contract, 'deed_list', {token_id: deed.token_id, price: deed.for_sale});
+    const token = await api('/api/ledger').then(r => r.ledger.deeds.find(d => d.token_id === deed.token_id));
+    log(true, `Bought <code>${esc(deed.token_id)}</code> for ${jade(deed.for_sale)} jade from ${esc(String(deed.owner_id).split('.')[0])}: it now belongs to ${accountLink(token.owner_id)}${txLink(bought.tx)}.
+      Listed again at the same price so the next visitor can buy it${txLink(relisted.tx)}. Its picture is drawn live from the shop:
+      <a href="/deeds/${esc(deed.rules_id)}.svg" target="_blank" rel="noopener">/deeds/${esc(deed.rules_id)}.svg</a>. Spec and threat model: <code>docs/shop-deeds.md</code>.`);
+    return;
+  }
   if (kind === 'invest') {
     const result = await session.sealCall(ledger.contract, 'patron_invest', {merchant_id: merchant.account_id, amount: '100'});
     log(result.ok, result.ok ? `You are a patron of Lu Yan with 1.00 jade: patrons share the shop's profit at the end of each market day${txLink(result.tx)}` : `Refused: ${esc(result.code)}${txLink(result.tx)}`);
