@@ -13,6 +13,8 @@ import * as market from './market/local.js';
 import * as marketViews from './market/views.js';
 import {runFastForward} from './market/fastforward.js';
 import {installPriceTooltips} from './market/tooltip.js';
+import * as online from './online/session.js';
+import * as onlineViews from './online/views.js';
 
 const root = document.querySelector('#app');
 const toast = document.querySelector('#toast');
@@ -129,6 +131,7 @@ function render({focus = false, preserve = true} = {}) {
   renderShell();
   const main = root.querySelector('#screen');
   main.classList.remove('screen-enter');
+  ui.sealChip = onlineViews.marketChip(online.state);
   main.innerHTML = screens[page](game,ui);
   if(page==='pets')petViews.bindPetMapControls(root);
   const hand = main.querySelector('.duel-hand');
@@ -267,12 +270,38 @@ function settings() {
       ${Object.entries({master:'Master volume',combat:'Combat & spells',ui:'Interface & workshop',progression:'Cultivation',pets:'Spirit companions'}).map(([id,label])=>`<label class="audio-slider"><span>${label}</span><input type="range" min="0" max="100" step="1" value="${Math.round(mix[id]*100)}" data-audio-setting="${id}" aria-label="${label}"><output data-audio-value="${id}">${Math.round(mix[id]*100)}%</output></label>`).join('')}
       <div class="audio-mixer-actions">${button('Test sound','audio-preview','',{icon:'sound',disabled:!game.sound||!mix.master})}${button('Audio credits','audio-credits','',{className:'quiet'})}</div>
     </section>
+    ${onlineViews.settingsSection(online.state)}
     <div class="settings-list">
       ${button('Download save','export','',{icon:'book'})}
       ${button('Load save file','import','',{icon:'bag'})}
       ${button('Replay shrine keeper’s guide','tutorial-replay','',{icon:'compass'})}
       ${button('Reset chronicle','reset','',{className:'danger'})}
     </div><input type="file" id="import-save" accept="application/json,.json" hidden>`});
+}
+
+// Sign-in and the ledger seal (js/online). The practice market keeps working whatever happens here.
+let sealFlow={};
+const SEAL_ERRORS={BAD_EMAIL:'That email does not look right.',WRONG_CODE:'That code is not right. Check it and try again.',
+  CODE_EXPIRED:'That code has expired. Ask for a new one.',SLOW_DOWN:'Too many tries. Wait a few minutes and try again.',
+  NAME_TAKEN:'That name is already in the ledger. Choose another.',BAD_NAME:'Names use 3–20 lowercase letters, numbers or dashes, starting with a letter.',
+  BUSY:'The Honest Ledger is busy. Try again in a minute.',GOOGLE_REFUSED:'Google could not confirm that sign-in.',OFFLINE:'The Honest Ledger is closed right now. The practice market still works.'};
+const sealError=error=>SEAL_ERRORS[error?.code]||'Something went wrong. Try again in a moment.';
+const sealName=()=>(dialog.querySelector('#seal-name')?.value||sealFlow.name||'').trim().toLowerCase();
+function openSeal(){
+  openDialog(onlineViews.sealDialog(online.state,sealFlow));
+  online.mountGoogleButton(dialog.querySelector('#seal-google'),credential=>sealStep(()=>online.google(credential)));
+}
+/** Runs a sign-in step, then presses the seal (account + this browser's key) if the ledger is open. */
+async function sealStep(signIn){
+  const name=sealName();
+  sealFlow={...sealFlow,name,busy:true};openSeal();
+  try{
+    await signIn();
+    if(online.state.ledger&&online.state.signedIn&&!online.state.user?.seal)await online.ensureSeal(name);
+    else if(online.state.ledger&&online.state.signedIn)await online.ensureSeal();
+    sealFlow={};openSeal();render();
+    notify(online.state.user?.seal?'Your seal is pressed. The Honest Ledger will record your trades.':'Signed in.');
+  }catch(error){sealFlow.busy=false;openSeal();notify(sealError(error),true)}
 }
 
 const mutations = {
@@ -454,6 +483,23 @@ function activate(action,id = '') {
       const result=gameRules.deleteDeck(game,id);if(result.ok)closeDialog();change(action,result);break;
     }
     case 'settings': settings(); break;
+    case 'seal-open': sealFlow={};openSeal(); break;
+    case 'seal-back': sealFlow={name:sealFlow.name};openSeal(); break;
+    case 'seal-use-code': sealFlow.code=id;openSeal(); break;
+    case 'seal-guest': sealStep(()=>online.guest(sealName())); break;
+    case 'seal-press': sealStep(async()=>{}); break;
+    case 'seal-email-send': {
+      const email=dialog.querySelector('#seal-email')?.value.trim()||'';sealFlow.name=sealName();
+      sealFlow.busy=true;openSeal();
+      online.emailStart(email).then(sent=>{sealFlow={...sealFlow,busy:false,step:'code',email,sent:sent.sent,dev:sent.dev};openSeal()},
+        error=>{sealFlow.busy=false;openSeal();notify(sealError(error),true)});
+      break;
+    }
+    case 'seal-email-verify': {
+      const code=dialog.querySelector('#seal-code')?.value.trim()||'';
+      sealStep(()=>online.emailVerify(sealFlow.email,code));break;
+    }
+    case 'seal-signout': online.signOut().then(()=>{sealFlow={};closeDialog();render();notify('Signed out on this device. Your seal is kept on the Honest Ledger.')}); break;
     case 'audio-preview': {
       const intent=++audioIntent;
       void warmAudio().then(()=>{if(intent===audioIntent&&game.sound)playSound('sound-preview',{scope:'preview',priority:5})});
@@ -751,6 +797,15 @@ document.addEventListener('pointerdown',()=>{void warmAudio()},{capture:true,pas
 document.addEventListener('keydown',()=>{void warmAudio()},{capture:true});
 installPriceTooltips();
 window.addEventListener('hashchange',()=>{if(location.hash==='#market-sim'&&page!=='market-sim')navigate('market-sim')});
+// Sign-in state loads in the background; an emailed link returns here with #market (or #signin-expired).
+online.load().then(async state=>{
+  if(location.hash==='#signin-expired'){history.replaceState(null,'',location.pathname);notify('That sign-in link has expired or was already used. Ask for a new code.',true)}
+  else if(location.hash==='#market'&&state.signedIn){history.replaceState(null,'',location.pathname);
+    try{await online.ensureSeal()}catch(error){notify(sealError(error),true)}
+    if(page!=='market')navigate('market');notify('Signed in. Your seal is pressed.')}
+  else if(state.signedIn&&state.ledger&&state.user?.seal)online.ensureSeal().catch(()=>{});
+  render();
+});
 // The practice market runs in this browser: one market hour per real minute, caught up on return.
 const away=market.advance(game,Date.now());
 if(away.hours)persist();

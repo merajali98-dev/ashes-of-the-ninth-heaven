@@ -34,8 +34,8 @@ function requirementLabel(level) {
   return `${REALMS[realm].name} · Layer ${layer}`;
 }
 
-function header(game,title,subtitle,kind='forge') {
-  return `<header class="commerce-heading" style="--commerce-art:url('${art(kind==='market'?'sect-neutral':'sect-cinder-house')}')"><div><div class="eyebrow">${kind==='market'?'THE NIGHT BAZAAR':kind==='deck'?'YOUR PATH, YOUR TECHNIQUES':'THE JADE CRUCIBLE'}</div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><div class="commerce-wallet"><span class="commerce-currency" title="Jade">${priceLabel(game.jade)}</span><span class="card-level-pill" title="Cultivation level">${icon('spark')}Cultivation Lv. ${cultivationLevel(game)}</span></div></header>`;
+function header(game,title,subtitle,kind='forge',extra='') {
+  return `<header class="commerce-heading" style="--commerce-art:url('${art(kind==='market'?'sect-neutral':'sect-cinder-house')}')"><div><div class="eyebrow">${kind==='market'?'THE NIGHT BAZAAR':kind==='deck'?'YOUR PATH, YOUR TECHNIQUES':'THE JADE CRUCIBLE'}</div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><div class="commerce-wallet"><span class="commerce-currency" title="Jade">${priceLabel(game.jade)}</span><span class="card-level-pill" title="Cultivation level">${icon('spark')}Cultivation Lv. ${cultivationLevel(game)}</span>${extra}</div></header>`;
 }
 
 function cardFilters(ui,amount,{ownership=true,tiers=true}={}) {
@@ -119,7 +119,7 @@ export function shop(game,ui={}) {
     const list=filterCards(game,ui,rules.cards,economy.quoteBuyCard);
     body=cardFilters(ui,list.length)+paginated(list,ui,card=>cardTile(game,card));
   }
-  return `<section class="commerce-screen" data-tutorial="shop-content">${header(game,'Night Bazaar','Nine merchants with their own purses and their own reasons. Techniques and gear for the long path.','market')}${tabs(SHOP_TABS,tabId)}${body}</section>`;
+  return `<section class="commerce-screen" data-tutorial="shop-content">${header(game,'Night Bazaar','Nine merchants with their own purses and their own reasons. Techniques and gear for the long path.','market',ui.sealChip||'')}${tabs(SHOP_TABS,tabId)}${body}</section>`;
 }
 
 function costRows(game,materials,{yieldOnly=false}={}) {

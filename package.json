@@ -12,7 +12,8 @@
     "contract:test": "cd contracts/items && cargo test",
     "chain:deploy": "node scripts/chain-deploy.mjs",
     "chain:smoke": "node scripts/chain-smoke.mjs",
-    "market:trace": "node scripts/gen-market-trace.mjs"
+    "market:trace": "node scripts/gen-market-trace.mjs",
+    "chain:e2e": "node scripts/chain-e2e.mjs"
   },
   "engines": {
     "node": ">=22"

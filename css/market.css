@@ -140,3 +140,21 @@
 }
 @media (min-width:601px){.sanctuary-scene .shrine-controls{width:620px;max-width:calc(100% - 60px)}}
 .shrine-market b{display:block;font-weight:600;color:#f3e6cf;font-size:.68rem}
+
+/* Ledger seal: sign-in dialog, settings block and the market chip (js/online/views.js) */
+.seal-chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 12px;border:1px dashed var(--line);border-radius:999px;background:transparent;color:var(--muted,#b9b2a6);font:inherit;font-size:.82rem;cursor:pointer}
+.seal-chip:hover,.seal-chip:focus-visible{border-color:var(--gold);color:var(--gold-bright)}
+.seal-chip.sealed{border-style:solid;border-color:#5d7a5a;color:#cfe3c6}
+.seal-step{display:flex;flex-direction:column;gap:8px;margin:12px 0;padding-top:12px;border-top:1px solid var(--line)}
+.seal-field{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.seal-field span{font-size:.85rem;color:var(--text)}
+.seal-field em{font-style:normal;color:var(--muted,#b9b2a6)}
+.seal-field input{min-height:40px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel-hi);color:var(--text);font:inherit}
+.seal-field input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.seal-field small{color:var(--muted,#b9b2a6);font-size:.75rem}
+.seal-dev{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 10px;border:1px solid #5d7a5a;border-radius:8px;background:rgba(93,122,90,.12)}
+.seal-dev strong{font-size:1.15rem;letter-spacing:.18em;color:var(--gold-bright)}
+.seal-google{min-height:44px}
+.seal-promise{margin-top:12px}
+.ledger-seal{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px}
+.ledger-seal code,.dialog-body .seal-dev code{word-break:break-all}

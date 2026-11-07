@@ -1,3 +1,4 @@
+import './server/env.js';
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { createReadStream } from 'node:fs';
@@ -6,6 +7,9 @@ import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createGzip } from 'node:zlib';
 import { pipeline } from 'node:stream';
+import { openStore } from './server/store.js';
+import { createChain } from './server/chain/service.js';
+import { createApi } from './server/api.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 4173);
@@ -28,8 +32,21 @@ const mime = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
+// The API (sign-in, ledger seal, relayer, status) is created on first use, so static play needs nothing else.
+let api = null;
+const apiHandler = () => api ??= (async () => {
+  const store = await openStore();
+  const chain = createChain({store});
+  chain.flushMints().catch(() => {}); // finish any grants a previous run left queued
+  return createApi({store, chain});
+})();
+
 export const server = createServer(async (req, res) => {
   try {
+    if (req.url.startsWith('/api/')) {
+      await (await apiHandler())(req, res);
+      return;
+    }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { Allow: 'GET, HEAD' }).end();
       return;
@@ -102,6 +119,6 @@ server.on('error', async error => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log('Ashes of the Ninth Heaven • ' + localUrl);
+  console.log('Ashes of the Ninth Heaven • http://127.0.0.1:' + server.address().port);
   if (openOnStart) openGame();
 });
