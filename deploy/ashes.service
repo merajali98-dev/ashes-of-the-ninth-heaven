@@ -1,0 +1,24 @@
+[Unit]
+Description=Ashes of the Ninth Heaven (game server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ashes
+Group=ashes
+WorkingDirectory=/opt/ashes/app
+# Settings and testnet keys (written by the deploy script), and the server's own secrets (made once on the VM).
+EnvironmentFile=/etc/ashes/env
+EnvironmentFile=/etc/ashes/secrets.env
+Environment=NODE_ENV=production PORT=4173 ASHES_STORE=/var/lib/ashes/store.json
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/ashes
+
+[Install]
+WantedBy=multi-user.target

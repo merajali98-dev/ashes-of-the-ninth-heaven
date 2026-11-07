@@ -13,7 +13,8 @@
     "chain:deploy": "node scripts/chain-deploy.mjs",
     "chain:smoke": "node scripts/chain-smoke.mjs",
     "market:trace": "node scripts/gen-market-trace.mjs",
-    "chain:e2e": "node scripts/chain-e2e.mjs"
+    "chain:e2e": "node scripts/chain-e2e.mjs",
+    "deploy": "node scripts/deploy-vm.mjs"
   },
   "engines": {
     "node": ">=22"
