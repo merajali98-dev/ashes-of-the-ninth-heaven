@@ -1,16 +1,21 @@
 // Price tooltips are drawn in one page-level layer, so tables and scroll areas never clip them.
-// Each price keeps its reasons in a hidden element that aria-describedby points at; this layer shows a copy
-// on hover, keyboard focus or tap, and keeps it fully on screen.
-let layer = null, anchor = null;
+// Each price keeps its reasons in a hidden element that aria-describedby points at (screen readers get every line).
+// The layer shows the main reason and the price first; "Why?" (click, tap again, or Enter) opens the rest.
+let layer = null, anchor = null, expanded = false;
 
-function show(tip) {
+function show(tip, open = false) {
   const body = tip.querySelector('.price-tip-body');
   if (!body) return;
   layer ??= Object.assign(document.body.appendChild(document.createElement('div')), {className: 'price-tip-layer', role: 'presentation'});
   layer.setAttribute('aria-hidden', 'true');
-  layer.innerHTML = body.innerHTML;
+  const lines = [...body.children].map(line => line.outerHTML);
+  const total = lines.length > 1 ? lines.at(-1).replace('<span', '<span class="tip-total"') : '';
+  const reasons = lines.length > 1 ? lines.slice(0, -1) : lines;
+  layer.innerHTML = open || reasons.length <= 1 ? reasons.join('') + total
+    : reasons[0] + total + `<em class="tip-more">Why? ${reasons.length - 1} more reason${reasons.length > 2 ? 's' : ''}: click or press Enter</em>`;
   layer.hidden = false;
   anchor = tip;
+  expanded = open;
   const box = tip.getBoundingClientRect(), width = Math.min(320, window.innerWidth - 24);
   layer.style.width = width + 'px';
   const height = layer.offsetHeight;
@@ -21,14 +26,19 @@ function show(tip) {
 function hide() {
   if (layer) layer.hidden = true;
   anchor = null;
+  expanded = false;
 }
 
 export function installPriceTooltips() {
   document.addEventListener('mouseover', event => { const tip = event.target.closest?.('.price-tip'); if (tip && tip !== anchor) show(tip); });
   document.addEventListener('mouseout', event => { if (anchor && !anchor.contains(event.relatedTarget) && document.activeElement !== anchor) hide(); });
-  document.addEventListener('focusin', event => { const tip = event.target.closest?.('.price-tip'); tip ? show(tip) : hide(); });
+  document.addEventListener('focusin', event => { const tip = event.target.closest?.('.price-tip'); tip ? (tip !== anchor && show(tip)) : hide(); });
   document.addEventListener('focusout', event => { if (anchor && event.target === anchor) hide(); });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+  document.addEventListener('click', event => { const tip = event.target.closest?.('.price-tip'); if (tip) show(tip, tip === anchor ? !expanded : true); });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') hide();
+    if ((event.key === 'Enter' || event.key === ' ') && anchor && document.activeElement === anchor) { event.preventDefault(); show(anchor, !expanded); }
+  });
   window.addEventListener('scroll', hide, {passive: true, capture: true});
   window.addEventListener('resize', hide);
   new MutationObserver(() => { if (anchor && !anchor.isConnected) hide(); }).observe(document.body, {childList: true, subtree: true});

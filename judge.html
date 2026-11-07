@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Judge's Desk · Ashes of the Ninth Heaven</title>
+<meta name="description" content="Every economic action in Ashes of the Ninth Heaven as one button that sends a real NEAR testnet transaction and links to it.">
+<link rel="icon" href="favicon.svg">
+<style>
+:root{--bg:#101016;--panel:#1a1922;--panel-hi:#211f2a;--line:#32303c;--text:#e9e2d6;--muted:#b3ab9e;--gold:#c8a064;--gold-bright:#ffe1a2;--green:#9fd39a;--red:#f0a09a;--serif:Georgia,'Times New Roman',serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif}
+main{max-width:1080px;margin:0 auto;padding:24px 16px 64px}
+h1{font:clamp(1.8rem,4vw,2.6rem) var(--serif);margin:4px 0}
+h2{font:1.3rem var(--serif);margin:0 0 8px}
+.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:var(--gold)}
+a{color:var(--gold-bright)}
+.lead{color:var(--muted);max-width:760px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:16px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+button{font:inherit;min-height:40px;padding:8px 14px;border-radius:8px;border:1px solid var(--gold);background:#2a2330;color:var(--gold-bright);cursor:pointer}
+button:hover:not(:disabled){background:#3a3040}
+button:disabled{opacity:.5;cursor:default}
+.actions{display:flex;flex-direction:column;gap:8px}
+.actions button{text-align:left}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px 5px;border-radius:4px}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.log li{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel-hi)}
+.log .ok{color:var(--green)}.log .no{color:var(--red)}
+.muted{color:var(--muted);font-size:.88rem}
+.req td:first-child{white-space:nowrap;color:var(--gold-bright)}
+.wide{grid-column:1/-1}
+@media(max-width:600px){th,td{padding:5px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Ashes of the Ninth Heaven · NEAR testnet</div>
+  <h1>Judge's Desk</h1>
+  <p class="lead">Every button below sends a real transaction to the NEP-245 contract on NEAR testnet and links to it on the explorer. You get a throwaway player account in one click; no wallet, no recovery words, no gas. The game itself is at <a href="/">the front page</a>.</p>
+
+  <div class="grid">
+    <section>
+      <h2>1 · Your test seal</h2>
+      <p class="muted" id="seal-state">Not created yet.</p>
+      <div class="actions"><button id="make-seal">Make a judge seal (a new testnet account)</button></div>
+    </section>
+    <section>
+      <h2>2 · Trade with a merchant</h2>
+      <div class="actions">
+        <button data-act="sell" disabled>Sell 1 Mortal Cinder Essence to Lu Yan</button>
+        <button data-act="buy" disabled>Buy 1 Mortal Cinder Essence from Lu Yan</button>
+        <button data-act="invest" disabled>Become a patron of Lu Yan (1 jade)</button>
+        <button data-act="forbidden" disabled>Try a forbidden move: send jade with the trade key</button>
+      </div>
+      <p class="muted">Trades are signed in this page with a key that can only call the market, then relayed; the game pays the fee.</p>
+    </section>
+    <section class="wide">
+      <h2>What happened</h2>
+      <ul class="log" id="log"><li class="muted">Results and explorer links appear here.</li></ul>
+    </section>
+    <section class="wide">
+      <h2>The merchants, live from the contract</h2>
+      <p class="muted" id="contract"></p>
+      <div style="overflow-x:auto"><table id="merchants"><thead><tr><th>Merchant</th><th>Account</th><th class="num">Purse (jade)</th><th>Status</th><th class="num">Patrons</th></tr></thead><tbody><tr><td colspan="5" class="muted">Loading…</td></tr></tbody></table></div>
+    </section>
+    <section>
+      <h2>Fast-forward a week</h2>
+      <p class="muted">The same rules and engine, played by simulated traders for 7 days in a minute. Nothing is sent to the chain; it is labelled as a simulation.</p>
+      <div class="actions"><button onclick="location.href='/#market-sim'">Open the fast-forward week</button></div>
+    </section>
+    <section>
+      <h2>Ledger status</h2>
+      <div id="status" class="muted">Loading…</div>
+    </section>
+    <section class="wide">
+      <h2>Where each requirement lives</h2>
+      <table class="req"><tbody>
+        <tr><td>NEP-245 items</td><td>One contract holds jade and all 873 goods: <code>contracts/items</code>. Every balance change emits a standard <code>nep245</code> event.</td></tr>
+        <tr><td>Social or email login</td><td>Google, an emailed code, or guest; the server makes a testnet account and the browser's own key can only call the market (<code>server/api.js</code>, <code>js/online/signer.js</code>).</td></tr>
+        <tr><td>One pricing file</td><td><code>js/market/merchant-rules.js</code>: the tooltip, the fast-forward and (generated into Rust) the contract all use it; <code>tests/parity.rs</code> replays 3,218 steps exactly.</td></tr>
+        <tr><td>Fast-forward</td><td><a href="/#market-sim">/#market-sim</a>: a week of trading in a minute, with flood and audit scenarios.</td></tr>
+        <tr><td>Game loop on paper</td><td><code>docs/game-loop.md</code>: the 30-second, 5-minute and session loops.</td></tr>
+      </tbody></table>
+    </section>
+  </div>
+</main>
+<script type="module" src="js/judge.js"></script>
+</body>
+</html>

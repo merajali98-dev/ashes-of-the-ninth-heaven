@@ -213,3 +213,52 @@ export function marketTeaser(game) {
   }
   return `<button class="shrine-action shrine-market" data-action="nav" data-id="market">${picture('assets/art/sect-neutral.webp')}<span>${icon('market')} Night Bazaar <b>${esc(note)}</b></span></button>`;
 }
+
+/**
+ * The calm front of the Night Bazaar (internal/14): what you can sell right now and to whom, what the week's Edict wants,
+ * and one merchant worth a visit. The full stalls, price board and patronage are one tap away.
+ */
+export function quickTrade(game, ui = {}) {
+  const world = marketWorld(game);
+  const merchantName = id => world.merchants[id]?.name ?? id;
+  const held = Object.keys(world.tokens).filter(id => owned(game, id) > 0)
+    .map(id => ({id, have: owned(game, id), best: bestPrices(game, id).bid}))
+    .filter(row => row.best)
+    .sort((a, b) => b.best.bid * b.have - a.best.bid * a.have);
+  const sellRows = held.slice(0, 8).map(({id, have, best}) => {
+    const token = world.tokens[id], many = Math.min(have, 10);
+    const manyOk = many > 1 && playerQuote(game, best.merchant, id, 'sell', many).ok;
+    return `<li class="quick-row">${tokenIcon(token)}<span class="quick-name"><b>${esc(token.name)}</b><small>You have ${have}</small></span>
+      <span class="quick-price"><small>${esc(merchantName(best.merchant))} pays</small>${priceTip(best.bid, best.lines, `${merchantName(best.merchant)} pays`, 'bid')}</span>
+      <span class="quick-actions">${button('Sell 1', 'market-sell', `${best.merchant}|${id}|1`, {className: 'compact'})}${manyOk ? button(`Sell ${many}`, 'market-sell', `${best.merchant}|${id}|${many}`, {className: 'compact quiet'}) : ''}</span></li>`;
+  }).join('');
+
+  const school = R.edictSchool(world.tick);
+  const wanted = Object.values(world.tokens).filter(t => t.school === school && (t.tier ?? 1) <= 2).slice(0, 4).map(token => {
+    const {bid, ask} = bestPrices(game, token.id);
+    if (!ask && !bid) return '';
+    return `<li class="quick-row">${tokenIcon(token)}<span class="quick-name"><b>${esc(token.name)}</b><small>${ask ? `${esc(merchantName(ask.merchant))} sells` : 'Nobody is selling'}</small></span>
+      <span class="quick-price">${ask ? priceTip(ask.ask, ask.lines, `${merchantName(ask.merchant)} charges`, 'ask') : ''}</span>
+      <span class="quick-actions">${ask ? button('Buy 1', 'market-buy', `${ask.merchant}|${token.id}|1`, {className: 'compact', disabled: walletCents(game) < ask.ask}) : ''}</span></li>`;
+  }).join('');
+
+  const ids = Object.keys(world.merchants);
+  const closed = ids.find(id => R.merchantStatus(world.merchants[id], world.markets[id]) === 'closed');
+  const struggling = ids.find(id => R.merchantStatus(world.merchants[id], world.markets[id]) === 'struggling');
+  const spotlight = closed ?? struggling ?? ids.reduce((a, b) => world.markets[b].cash / world.merchants[b].startCash > world.markets[a].cash / world.merchants[a].startCash ? b : a);
+  const story = closed ? `${merchantName(closed)}'s shop has closed: the purse ran dry. Patrons can rekindle it and share in what it earns.`
+    : struggling ? `${merchantName(struggling)} is short of jade and pays less than usual. Buying there helps the shop recover.`
+    : `${merchantName(spotlight)} has the fullest purse in the bazaar today and can afford to pay for good goods.`;
+
+  return `<div class="quick-trade">
+    <section class="quick-panel quick-sell"><h2>Sell what you carry</h2>
+      ${sellRows ? `<ul class="quick-list">${sellRows}</ul><p class="microcopy">Each price is the best offer in the bazaar right now. Hover or tap a price to hear why.</p>`
+        : '<p class="microcopy">You carry nothing the merchants buy yet. Commissions in the Expeditions bring back essences and seals to sell.</p>'}</section>
+    <section class="quick-panel quick-wanted"><h2>Wanted this week: ${esc(schoolName[school] ?? school)}</h2>
+      <p class="microcopy">The Pagoda Edict favours ${esc(schoolName[school] ?? school)} techniques, so cultivators pay more for these goods.</p>
+      ${wanted ? `<ul class="quick-list">${wanted}</ul>` : ''}</section>
+    <section class="quick-panel quick-spotlight">${picture(portrait(spotlight), 'merchant-face')}<div><h2>${esc(merchantName(spotlight))}</h2><p>${esc(story)}</p>
+      ${button(`Visit ${merchantName(spotlight)}`, 'market-merchant', spotlight, {className: 'quiet'})}</div></section>
+    <div class="quick-more">${button('Open the full bazaar', 'tab', 'merchants', {icon: 'market'})}</div>
+  </div>`;
+}

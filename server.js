@@ -14,7 +14,8 @@ import { createApi } from './server/api.js';
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 4173);
 const localUrl = 'http://127.0.0.1:' + port;
-const publicFiles = new Set(['/index.html', '/favicon.svg']);
+const publicFiles = new Set(['/index.html', '/favicon.svg', '/judge.html', '/privacy.html']);
+const aliases = {'/judge': '/judge.html', '/privacy': '/privacy.html'};
 const publicDirs = ['/js/', '/css/', '/assets/'];
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -52,7 +53,7 @@ export const server = createServer(async (req, res) => {
       return;
     }
     const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    const url = path === '/' ? '/index.html' : path;
+    const url = path === '/' ? '/index.html' : aliases[path] ?? path;
     const file = resolve(root, '.' + url);
     if ((!publicFiles.has(url) && !publicDirs.some(dir => url.startsWith(dir))) ||
         !file.startsWith(resolve(root) + sep) || url.split(/[\\/]/).includes('..')) {

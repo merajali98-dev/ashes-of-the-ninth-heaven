@@ -26,6 +26,7 @@ test('no player-facing string mentions wallets, recovery words, gas or the chain
   const hits = [];
   for (const file of await files(ROOT)) {
     if (file.includes(join('js', 'online', 'signer.js'))) continue; // the signer has no UI text, only protocol names
+    if (file.endsWith(join('js', 'judge.js'))) continue; // the Judge's Desk is for judges and names the chain on purpose
     const lines = (await readFile(file, 'utf8')).split('\n');
     lines.forEach((line, i) => {
       if (line.includes('chain-words-ok') || /^\s*(\/\/|\*)/.test(line)) return;

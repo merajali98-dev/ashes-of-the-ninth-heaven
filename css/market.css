@@ -158,3 +158,25 @@
 .seal-promise{margin-top:12px}
 .ledger-seal{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px}
 .ledger-seal code,.dialog-body .seal-dev code{word-break:break-all}
+
+/* Quick trade: the calm front of the Night Bazaar (internal/14) */
+.quick-trade{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;align-items:start}
+.quick-panel{background:linear-gradient(150deg,#1d1b24,#181720);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.quick-panel h2{font:1.25rem var(--serif);margin:0 0 6px}
+.quick-sell{grid-row:span 2}
+.quick-list{list-style:none;margin:8px 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.quick-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.quick-row .market-token-icon{width:36px;height:36px}
+.quick-name{display:flex;flex-direction:column;min-width:0}.quick-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.quick-name small,.quick-price small{color:var(--muted);font-size:.75rem}
+.quick-price{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.quick-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.quick-spotlight{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:start}
+.quick-spotlight .merchant-face{width:64px;height:64px;border-radius:50%;object-fit:cover}
+.quick-spotlight p{margin:0 0 10px;color:var(--text)}
+.quick-more{grid-column:1/-1;display:flex;justify-content:center}
+@media(max-width:760px){.quick-trade{grid-template-columns:1fr}.quick-sell{grid-row:auto}.quick-row{grid-template-columns:32px minmax(0,1fr) auto}.quick-actions{grid-column:1/-1}}
+/* One-line tooltips: the main reason and the price, then "Why?" opens the rest */
+.price-tip-layer span:last-child{border-top:0;padding-top:0}
+.price-tip-layer .tip-total{color:var(--gold-bright);font-weight:650;padding-top:4px;border-top:1px solid var(--line)}
+.price-tip-layer .tip-more{color:var(--muted);font-size:.75rem;font-style:normal}
