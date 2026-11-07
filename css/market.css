@@ -193,3 +193,14 @@
 
 .sim-story{margin:0 0 10px;padding:10px 14px;border:1px solid var(--gold);border-radius:8px;background:rgba(200,160,100,.08);font:1.05rem var(--serif);color:var(--text)}
 .sim-story b{color:var(--gold-bright);margin-right:6px;font-family:inherit}
+
+/* Shop deeds */
+.deed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:10px}
+.deed-card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.deed-card.mine{border-color:var(--gold)}
+.deed-art{width:100%;aspect-ratio:600/840;object-fit:cover;background:#16141b}
+.deed-body{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.deed-body h3{margin:0;font:1.1rem var(--serif)}
+.deed-sell{display:flex;gap:6px}
+.deed-sell input,.deed-sell select{width:110px;min-height:34px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel-hi);color:var(--text);font:inherit}
+.header-seal{margin-right:6px}

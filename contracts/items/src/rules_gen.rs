@@ -45,6 +45,9 @@ pub const EVENTS: [EventDef; 6] = [
 pub const TAX_BASE_BPS: i128 = 300;
 pub const PATRON_MAX_PUBLIC_BPS: i128 = 4900;
 pub const PATRON_MAX_PATRONS: usize = 10;
+pub const DEED_OWNER_SHARE_BPS: i128 = 1000;
+pub const DEED_PRICE: u128 = 10000;
+pub const DEED_MAX_PER_ACCOUNT: usize = 3;
 pub const MERCHANTS: [MerchantDef; 9] = [
     MerchantDef { id: "granny-qiu", name: "Granny Qiu", start_cash: 400000, consumables: false,
         temperament: Temperament { k_quarters: 3, spread_bps: 2500, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000 },

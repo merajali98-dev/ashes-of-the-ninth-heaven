@@ -35,6 +35,7 @@ export async function refresh() {
     ledger.books = {tick: data.tick, testimonyBps: data.testimonyBps ?? 0, merchants: Object.fromEntries(data.merchants.map(m => [m.rules_id, m]))};
     ledger.listings = data.listings ?? [];
     ledger.journal = data.journal ?? {};
+    ledger.deeds = data.deeds ?? [];
     ledger.contract = data.contract;
     if (data.balances) ledger.balances = data.balances;
     ledger.active = Boolean(data.balances && data.contract);
@@ -124,7 +125,8 @@ export async function reconcile(game, reason = 'the game') {
   } finally { ledger.syncing--; }
 }
 
-const CODES = {NO_LISTING: 'That listing has just been sold or taken down.', OWN_LISTING: 'That is your own listing.', NOT_ENOUGH: 'There are not that many left.',
+const CODES = {NOT_FOR_SALE: 'That deed is not for sale.', TOO_MANY_DEEDS: 'One cultivator may hold at most three deeds.', ALREADY_YOURS: 'You already hold that deed.',
+  STRATEGY_ALREADY_SET_TODAY: 'The shop has already decided today. Try again next market day.', NO_DEED: 'That deed does not exist.', NO_LISTING: 'That listing has just been sold or taken down.', OWN_LISTING: 'That is your own listing.', NOT_ENOUGH: 'There are not that many left.',
   TOO_MANY_LISTINGS: 'You already have 20 listings up.', MARKET_FULL: 'The stalls are full right now. Try again later.', BAD_PRICE: 'Choose a price between 0.01 and 1,000,000 jade.',
   NO_JADE: 'You need more jade for that.', NOT_YOURS: 'Only the seller can take that down.', PRICE_MOVED: 'Prices moved while you haggled. Look again and retry.', MERCHANT_CLOSED: 'That shop has closed.',
   PURSE_EMPTY: 'The merchant cannot pay for that right now.', OUT_OF_STOCK: 'The merchant has run out.', STOREROOM_FULL: 'The storeroom is full.',
@@ -242,3 +244,25 @@ export async function claimCommission(game, battleId, actions, before) {
 
 /** The save's ledger goods and jade right now (for "before the reward"). */
 export const snapshotHoldings = game => holdings(game);
+
+// ------------------------------------------------------------------ Shop Deeds (NEP-171)
+
+async function deedCall(game, method, args, jadeDelta = 0) {
+  const result = await listingCall(method, args);
+  if (!result.ok) return result;
+  if (jadeDelta) applyBalances(game, {...ledger.balances, jade: ledger.balances.jade + jadeDelta});
+  await refresh();
+  return {ok: true, record: result.tx, receipt: result.receipt};
+}
+export const buyDeed = (game, deed) => deedCall(game, 'deed_buy', {token_id: deed.token_id, max_price: deed.for_sale}, -Number(deed.for_sale));
+export const listDeed = (game, deed, priceCents) => deedCall(game, 'deed_list', {token_id: deed.token_id, price: priceCents ? String(priceCents) : null});
+export async function claimDeed(game, deed) {
+  const result = await listingCall('deed_claim', {token_id: deed.token_id});
+  if (!result.ok) return result;
+  const amount = Number(result.receipt ?? deed.vault);
+  applyBalances(game, {...ledger.balances, jade: ledger.balances.jade + amount});
+  await refresh();
+  return {ok: true, amount, record: result.tx};
+}
+export const appointAgent = (game, deed, appoint) => deedCall(game, 'deed_appoint_agent', {token_id: deed.token_id, appoint});
+export const setDeedSpecialty = (game, deed, school) => deedCall(game, 'deed_set_strategy', {token_id: deed.token_id, target_bps: [], specialty: school || null});

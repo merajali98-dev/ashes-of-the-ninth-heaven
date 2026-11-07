@@ -21,7 +21,7 @@ pub mod pricing;
 pub mod rules_gen;
 
 use pricing::{MarketState, Status, TokenInfo};
-use rules_gen::{BPS, MAX_CATCH_UP_TICKS, PATRON_MAX_PATRONS, PATRON_MAX_PUBLIC_BPS, TICKS_PER_DAY};
+use rules_gen::{BPS, DEED_MAX_PER_ACCOUNT, DEED_OWNER_SHARE_BPS, DEED_PRICE, MAX_CATCH_UP_TICKS, PATRON_MAX_PATRONS, PATRON_MAX_PUBLIC_BPS, TICKS_PER_DAY};
 
 pub const JADE: &str = "jade";
 const JADE_INDEX: u32 = 0;
@@ -42,6 +42,27 @@ enum Key {
     // demand (see `listings()`), so the stored contract struct is unchanged and the upgrade needs no migration.
     Listings,
     ListingCounts,
+    // Added with Shop Deeds (NEP-171), opened on demand like the listings.
+    Deeds,
+}
+
+const ALL_DEEDS: &[u8] = b"deeds:all";
+
+/// A Shop Deed: an NFT that is a merchant's ownership. Its holder takes the owner's share of each profitable day into
+/// `vault` (which travels with the deed), and decides the shop's strategy or appoints the merchant's agent to.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct Deed {
+    pub token_id: String,
+    pub rules_id: String,
+    pub merchant_id: AccountId,
+    pub owner: AccountId,
+    /// The holder's asking price, if listed. Deeds the Ministry holds always sell at DEED_PRICE.
+    pub price: Option<U128>,
+    pub vault: U128,
+    /// True: the merchant's own agent decides the strategy. False: only the holder does.
+    pub agent: bool,
+    pub minted_ms: u64,
 }
 
 const MAX_OPEN_LISTINGS: usize = 400;
@@ -127,6 +148,7 @@ struct CatchUp {
     stock_delta: Vec<i64>,
     cash_delta: i64,
     dividends: Vec<(AccountId, i64)>,
+    deed_share: i64,
 }
 
 #[near(serializers = [json])]
@@ -395,6 +417,15 @@ impl Contract {
     /// A merchant's own agent may adjust its targets (within the learning band) and specialty, once per market day.
     pub fn merchant_set_strategy(&mut self, target_bps: Vec<(String, u16)>, specialty: Option<String>) {
         let merchant_id = env::predecessor_account_id();
+        if let Some(m) = self.merchants.get(&merchant_id) {
+            if let Some(d) = self.deed_for(&m.rules_id.clone()) {
+                require!(d.owner == self.ministry_id || d.agent, "DEED_HOLDER_DECIDES");
+            }
+        }
+        self.set_strategy(merchant_id, target_bps, specialty);
+    }
+
+    fn set_strategy(&mut self, merchant_id: AccountId, target_bps: Vec<(String, u16)>, specialty: Option<String>) {
         let mut m = self.caught_up(&merchant_id);
         let day = self.current_tick() / TICKS_PER_DAY;
         require!(m.strategy_day != Some(day), "STRATEGY_ALREADY_SET_TODAY");
@@ -406,6 +437,179 @@ impl Contract {
         emit("ashes", "1.0.0", "merchant_strategy", json!({"merchant_id": merchant_id, "day": day, "specialty": m.state.specialty,
             "targets": goods.iter().zip(m.state.target.iter()).map(|(t, v)| json!([t.id, v])).collect::<Vec<_>>()}));
         self.merchants.insert(merchant_id, m);
+    }
+
+    // ------------------------------------------------------------------ Shop Deeds (NEP-171)
+
+    /// Mints one deed per merchant to the Ministry (owner only; deeds that exist are left alone).
+    pub fn deed_mint_all(&mut self) -> Vec<String> {
+        self.assert_owner();
+        let mut all = Self::all_deeds();
+        let mut deeds = Self::deed_store();
+        let mut minted = vec![];
+        for (merchant_id, m) in self.merchants.iter() {
+            let token_id = format!("deed:{}", m.rules_id);
+            if deeds.contains_key(&token_id) {
+                continue;
+            }
+            deeds.insert(token_id.clone(), Deed { token_id: token_id.clone(), rules_id: m.rules_id.clone(), merchant_id: merchant_id.clone(),
+                owner: self.ministry_id.clone(), price: None, vault: U128(0), agent: true, minted_ms: env::block_timestamp_ms() });
+            all.push(token_id.clone());
+            minted.push(token_id);
+        }
+        drop(deeds);
+        Self::save_all_deeds(&all);
+        if !minted.is_empty() {
+            emit("nep171", "1.0.0", "nft_mint", json!({"owner_id": self.ministry_id, "token_ids": minted, "memo": "shop deeds"}));
+        }
+        minted
+    }
+
+    /// Buys a deed: from the Ministry at the fixed price (paid into the shop's purse as new capital), or from its holder at
+    /// their listed price (paid to them, less the Ministry's trade tax). The vault comes with it.
+    pub fn deed_buy(&mut self, token_id: String, max_price: U128) -> Deed {
+        require!(!self.paused, "PAUSED");
+        let buyer = env::predecessor_account_id();
+        require!(!self.merchants.contains_key(&buyer), "merchants trade through their agents");
+        let d = self.deed(&token_id);
+        require!(d.owner != buyer, "ALREADY_YOURS");
+        let from_ministry = d.owner == self.ministry_id;
+        let price = if from_ministry { DEED_PRICE } else { d.price.unwrap_or_else(|| fail("NOT_FOR_SALE")).0 };
+        require!(price <= max_price.0, "PRICE_MOVED");
+        let jade = self.balance(&buyer, JADE_INDEX);
+        require!(jade >= price, "NO_JADE");
+        self.set_balance(&buyer, JADE_INDEX, jade - price);
+        if from_ministry {
+            let mut m = self.caught_up(&d.merchant_id);
+            m.state.cash += price as i64;
+            m.capital_in += price as i64;
+            self.merchants.insert(d.merchant_id.clone(), m);
+            emit_mt("mt_transfer", json!({"old_owner_id": buyer, "new_owner_id": d.merchant_id, "token_ids": [JADE], "amounts": [U128(price)], "memo": format!("{token_id} bought from the Ministry")}));
+        } else {
+            let tax = price * pricing::tax_bps(self.testimony_bps as i128) as u128 / BPS as u128;
+            let seller = self.balance(&d.owner, JADE_INDEX);
+            self.set_balance(&d.owner, JADE_INDEX, seller + price - tax);
+            if tax > 0 {
+                let ministry = self.ministry_id.clone();
+                let have = self.balance(&ministry, JADE_INDEX);
+                self.set_balance(&ministry, JADE_INDEX, have + tax);
+                emit_mt("mt_transfer", json!({"old_owner_id": buyer, "new_owner_id": ministry, "token_ids": [JADE], "amounts": [U128(tax)], "memo": "ministry tax"}));
+            }
+            emit_mt("mt_transfer", json!({"old_owner_id": buyer, "new_owner_id": d.owner, "token_ids": [JADE], "amounts": [U128(price - tax)], "memo": format!("{token_id} bought")}));
+        }
+        self.move_deed(&token_id, &d.owner, &buyer, Some(format!("bought for {price}")))
+    }
+
+    /// The holder puts the deed up for sale at their price (deposit-free, so a game key can sign it), or takes it down.
+    pub fn deed_list(&mut self, token_id: String, price: Option<U128>) {
+        let d = self.deed_of_caller(&token_id);
+        require!(price.map_or(true, |p| p.0 > 0 && p.0 <= 1_000_000_000), "BAD_PRICE");
+        let mut deeds = Self::deed_store();
+        deeds.insert(token_id, Deed { price, ..d });
+    }
+
+    /// The holder takes the deed's vault: the owner's share it has earned so far.
+    pub fn deed_claim(&mut self, token_id: String) -> U128 {
+        let d = self.deed_of_caller(&token_id);
+        let merchant_id = d.merchant_id.clone();
+        let fresh = self.caught_up(&merchant_id); // today's share first
+        self.merchants.insert(merchant_id, fresh);
+        let d = self.deed(&token_id);
+        let amount = d.vault.0;
+        if amount == 0 {
+            return U128(0);
+        }
+        let escrow = env::current_account_id();
+        let held = self.balance(&escrow, JADE_INDEX);
+        self.set_balance(&escrow, JADE_INDEX, held - amount);
+        let have = self.balance(&d.owner, JADE_INDEX);
+        self.set_balance(&d.owner, JADE_INDEX, have + amount);
+        emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": d.owner, "token_ids": [JADE], "amounts": [U128(amount)], "memo": format!("{token_id} vault claimed")}));
+        Self::deed_store().insert(token_id, Deed { vault: U128(0), ..d });
+        U128(amount)
+    }
+
+    /// The holder runs the shop: the same once-a-day strategy, within the same limits, as the merchant's agent.
+    pub fn deed_set_strategy(&mut self, token_id: String, target_bps: Vec<(String, u16)>, specialty: Option<String>) {
+        let d = self.deed_of_caller(&token_id);
+        self.set_strategy(d.merchant_id, target_bps, specialty);
+    }
+
+    /// The holder appoints the merchant's agent to decide (true) or keeps the decision for themself (false).
+    pub fn deed_appoint_agent(&mut self, token_id: String, appoint: bool) {
+        let d = self.deed_of_caller(&token_id);
+        Self::deed_store().insert(token_id, Deed { agent: appoint, ..d });
+    }
+
+    pub fn deeds(&self) -> Vec<Value> {
+        Self::all_deeds().iter().filter_map(|id| Self::deed_store().get(id).cloned()).map(|d| self.deed_view(&d)).collect()
+    }
+
+    /// NEP-171 transfer from a full-access wallet (1 yoctoNEAR). The vault and the control go with the deed.
+    #[payable]
+    pub fn nft_transfer(&mut self, receiver_id: AccountId, token_id: String, approval_id: Option<u64>, memo: Option<String>) {
+        assert_one_yocto();
+        require!(approval_id.is_none(), "approvals are not supported");
+        let d = self.deed(&token_id);
+        require!(d.owner == env::predecessor_account_id(), "NOT_YOURS");
+        self.move_deed(&token_id, &d.owner, &receiver_id, memo);
+    }
+
+    #[payable]
+    pub fn nft_transfer_call(&mut self, receiver_id: AccountId, token_id: String, approval_id: Option<u64>, memo: Option<String>, msg: String) -> PromiseOrValue<bool> {
+        assert_one_yocto();
+        require!(approval_id.is_none(), "approvals are not supported");
+        let d = self.deed(&token_id);
+        let sender = env::predecessor_account_id();
+        require!(d.owner == sender, "NOT_YOURS");
+        self.move_deed(&token_id, &sender, &receiver_id, memo);
+        let spare = env::prepaid_gas().saturating_sub(env::used_gas()).saturating_sub(GAS_FOR_RESOLVE).saturating_sub(GAS_RESERVE);
+        require!(spare.as_tgas() >= 5, "attach more gas for the receiver");
+        Promise::new(receiver_id.clone())
+            .function_call("nft_on_transfer", json!({"sender_id": sender, "previous_owner_id": sender, "token_id": token_id, "msg": msg}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0), spare)
+            .then(Promise::new(env::current_account_id()).function_call("nft_resolve_transfer",
+                json!({"previous_owner_id": sender, "receiver_id": receiver_id, "token_id": token_id}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0), GAS_FOR_RESOLVE))
+            .into()
+    }
+
+    /// True if the receiver kept the deed. If it asked for it back (or failed), the deed returns to the sender.
+    #[private]
+    pub fn nft_resolve_transfer(&mut self, previous_owner_id: AccountId, receiver_id: AccountId, token_id: String,
+        approved_account_ids: Option<std::collections::HashMap<AccountId, u64>>) -> bool {
+        let _ = approved_account_ids;
+        let give_back = match env::promise_result_checked(0, 16_384) {
+            Ok(bytes) => serde_json::from_slice::<bool>(&bytes).unwrap_or(true),
+            Err(_) => true,
+        };
+        let d = self.deed(&token_id);
+        if give_back && d.owner == receiver_id {
+            self.move_deed(&token_id, &receiver_id, &previous_owner_id, Some("returned".into()));
+            return false;
+        }
+        true
+    }
+
+    pub fn nft_token(&self, token_id: String) -> Option<Value> {
+        Self::deed_store().get(&token_id).map(|d| self.nft_json(d))
+    }
+    pub fn nft_total_supply(&self) -> U128 {
+        U128(Self::all_deeds().len() as u128)
+    }
+    pub fn nft_tokens(&self, from_index: Option<U128>, limit: Option<u64>) -> Vec<Value> {
+        Self::all_deeds().iter().skip(from_index.map_or(0, |i| i.0 as usize)).take(limit.unwrap_or(50) as usize)
+            .filter_map(|id| Self::deed_store().get(id).map(|d| self.nft_json(d))).collect()
+    }
+    pub fn nft_supply_for_owner(&self, account_id: AccountId) -> U128 {
+        U128(self.deeds_held(&account_id) as u128)
+    }
+    pub fn nft_tokens_for_owner(&self, account_id: AccountId, from_index: Option<U128>, limit: Option<u64>) -> Vec<Value> {
+        Self::all_deeds().iter().filter_map(|id| Self::deed_store().get(id).cloned()).filter(|d| d.owner == account_id)
+            .skip(from_index.map_or(0, |i| i.0 as usize)).take(limit.unwrap_or(50) as usize).map(|d| self.nft_json(&d)).collect()
+    }
+    pub fn nft_metadata(&self) -> Value {
+        json!({"spec": "nft-1.0.0", "name": "Ashes Shop Deeds", "symbol": "DEED", "icon": null, "base_uri": self.base_uri, "reference": null, "reference_hash": null})
     }
 
     // ------------------------------------------------------------------ player listings
@@ -674,6 +878,53 @@ impl Contract {
 
 // ---------------------------------------------------------------------- internals
 impl Contract {
+    fn deed_store() -> LookupMap<String, Deed> {
+        LookupMap::new(Key::Deeds)
+    }
+    fn all_deeds() -> Vec<String> {
+        env::storage_read(ALL_DEEDS).map(|b| near_sdk::borsh::from_slice(&b).unwrap_or_default()).unwrap_or_default()
+    }
+    fn save_all_deeds(all: &Vec<String>) {
+        env::storage_write(ALL_DEEDS, &near_sdk::borsh::to_vec(all).unwrap());
+    }
+    fn deed_for(&self, rules_id: &str) -> Option<Deed> {
+        Self::deed_store().get(&format!("deed:{rules_id}")).cloned()
+    }
+    fn deed(&self, token_id: &str) -> Deed {
+        Self::deed_store().get(token_id).cloned().unwrap_or_else(|| fail("NO_DEED"))
+    }
+    fn deed_of_caller(&self, token_id: &str) -> Deed {
+        let d = self.deed(token_id);
+        require!(d.owner == env::predecessor_account_id(), "NOT_YOURS");
+        d
+    }
+    fn deeds_held(&self, account: &AccountId) -> usize {
+        Self::all_deeds().iter().filter(|id| Self::deed_store().get(*id).map_or(false, |d| &d.owner == account)).count()
+    }
+    fn move_deed(&mut self, token_id: &str, from: &AccountId, to: &AccountId, memo: Option<String>) -> Deed {
+        require!(!self.merchants.contains_key(to), "a shop cannot own its own deed");
+        require!(to == &self.ministry_id || self.deeds_held(to) < DEED_MAX_PER_ACCOUNT, "TOO_MANY_DEEDS");
+        let d = self.deed(token_id);
+        require!(&d.owner == from, "NOT_YOURS");
+        // A new holder starts with the merchant's agent appointed and nothing listed; the vault stays with the deed.
+        let next = Deed { owner: to.clone(), price: None, agent: true, ..d };
+        Self::deed_store().insert(token_id.to_string(), next.clone());
+        emit("nep171", "1.0.0", "nft_transfer", json!({"old_owner_id": from, "new_owner_id": to, "token_ids": [token_id], "memo": memo}));
+        next
+    }
+    fn deed_view(&self, d: &Deed) -> Value {
+        let for_sale = if d.owner == self.ministry_id { Some(U128(DEED_PRICE)) } else { d.price };
+        json!({"token_id": d.token_id, "rules_id": d.rules_id, "merchant_id": d.merchant_id, "owner_id": d.owner, "for_sale": for_sale,
+            "vault": d.vault, "agent": d.agent, "owner_share_bps": DEED_OWNER_SHARE_BPS, "held_by_ministry": d.owner == self.ministry_id})
+    }
+    fn nft_json(&self, d: &Deed) -> Value {
+        let m = self.merchants.get(&d.merchant_id);
+        let name = m.map(|m| m.def().name.to_string()).unwrap_or_else(|| d.rules_id.clone());
+        json!({"token_id": d.token_id, "owner_id": d.owner, "approved_account_ids": {},
+            "metadata": {"title": format!("Deed to {name}'s shop"), "description": format!("Whoever holds this deed owns {name}'s shop: it takes {}% of each profitable market day into its vault, and runs the shop's strategy or appoints the merchant's agent.", DEED_OWNER_SHARE_BPS / 100),
+                "media": self.base_uri.as_ref().map(|b| format!("{b}deeds/{}.svg", d.rules_id)), "media_hash": null, "copies": 1,
+                "issued_at": d.minted_ms.to_string(), "extra": self.deed_view(d).to_string(), "reference": null, "reference_hash": null}})
+    }
     fn listing_store() -> LookupMap<u64, Listing> {
         LookupMap::new(Key::Listings)
     }
@@ -827,6 +1078,8 @@ impl Contract {
         let start = m.next_tick.max(now.saturating_sub(MAX_CATCH_UP_TICKS));
         let before = m.state.clone();
         let mut dividends: Vec<(AccountId, i64)> = vec![];
+        let deed_holder = self.deed_for(&m.rules_id).filter(|d| d.owner != self.ministry_id).map(|d| d.owner);
+        let mut deed_share = 0i64;
         for tick in start..now {
             m.state = pricing::tick_merchant(def, &m.goods_info, &m.state, tick);
             if (tick + 1) % TICKS_PER_DAY == 0 {
@@ -844,13 +1097,19 @@ impl Contract {
                     }
                     m.state.cash -= paid;
                 }
+                if deed_holder.is_some() && profit > 0 && !m.state.closed {
+                    let cut = (profit as i128 * DEED_OWNER_SHARE_BPS / BPS) as i64;
+                    m.state.cash -= cut;
+                    deed_share += cut;
+                }
                 m.day_start = m.state.cash;
                 m.capital_in = 0;
             }
         }
         m.next_tick = now;
         let paid: i64 = dividends.iter().map(|(_, c)| c).sum();
-        out.cash_delta = m.state.cash - before.cash + paid;
+        out.cash_delta = m.state.cash - before.cash + paid + deed_share;
+        out.deed_share = deed_share;
         out.stock_delta = m.state.stock.iter().zip(&before.stock).map(|(a, b)| a - b).collect();
         out.dividends = dividends;
         (m, out)
@@ -882,6 +1141,19 @@ impl Contract {
         }
         if !burned.is_empty() {
             emit_mt("mt_burn", json!({"owner_id": merchant_id, "token_ids": burned, "amounts": burned_n, "memo": "upkeep and caravans"}));
+        }
+        if out.deed_share > 0 {
+            let key = format!("deed:{}", m.rules_id);
+            let mut deeds = Self::deed_store();
+            if let Some(mut d) = deeds.get(&key).cloned() {
+                d.vault = U128(d.vault.0 + out.deed_share as u128);
+                deeds.insert(key.clone(), d);
+                drop(deeds);
+                let escrow = env::current_account_id();
+                let held = self.balance(&escrow, JADE_INDEX);
+                self.set_balance(&escrow, JADE_INDEX, held + out.deed_share as u128);
+                emit_mt("mt_transfer", json!({"old_owner_id": merchant_id, "new_owner_id": escrow, "token_ids": [JADE], "amounts": [out.deed_share.to_string()], "memo": format!("owner's share to {key}")}));
+            }
         }
         for (patron, cut) in &out.dividends {
             let have = self.balance(patron, JADE_INDEX);

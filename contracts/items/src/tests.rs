@@ -385,3 +385,131 @@ fn merchants_do_not_list() {
     at("m-lu-yan.test", 0, 0);
     c.listing_create("mat:essence-ember-1".into(), U128(1), U128(300));
 }
+
+// ---------------------------------------------------------------- Shop Deeds (NEP-171)
+
+fn with_deeds() -> Contract {
+    let mut c = setup();
+    at("owner.test", 0, 0);
+    let minted = c.deed_mint_all();
+    assert_eq!(minted.len(), 2);
+    assert_eq!(c.deed_mint_all().len(), 0, "minting twice changes nothing");
+    at("minter.test", 0, 0);
+    c.game_mint_batch(vec![MintEntry { account_id: acc("bob.test"), token_id: JADE.into(), amount: U128(400_000) }], 2, None);
+    c
+}
+
+#[test]
+fn the_ministry_sells_a_deed_once_and_the_price_becomes_the_shops_capital() {
+    let mut c = with_deeds();
+    let purse = bal(&c, "m-lu-yan.test", JADE);
+    at("alice.test", 1_000, 0);
+    let d = c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    assert_eq!(d.owner, acc("alice.test"));
+    assert_eq!(bal(&c, "alice.test", JADE), 50_000 - DEED_PRICE);
+    assert_eq!(bal(&c, "m-lu-yan.test", JADE), purse + DEED_PRICE, "paid into the shop's purse");
+    let token = c.nft_token("deed:lu-yan".into()).unwrap();
+    assert_eq!(token["owner_id"], "alice.test");
+    assert_eq!(c.nft_supply_for_owner(acc("alice.test")).0, 1);
+    assert_eq!(c.nft_total_supply().0, 2);
+    assert!(get_logs().iter().any(|l| l.contains("\"standard\":\"nep171\"") && l.contains("nft_transfer")));
+}
+
+#[test]
+fn the_holder_earns_the_owners_share_into_the_deeds_vault_and_it_moves_with_the_deed() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    // A busy day: bob buys a lot from Lu Yan, so her day is profitable.
+    at("bob.test", 10 * TICK, 0);
+    for _ in 0..10 {
+        c.market_buy(acc("m-lu-yan.test"), "mat:essence-ember-1".into(), U128(10), U128(400_000));
+    }
+    at("bob.test", 25 * TICK, 0);
+    c.market_advance(vec![acc("m-lu-yan.test")]);
+    let vault = c.deeds().iter().find(|d| d["token_id"] == "deed:lu-yan").unwrap()["vault"].as_str().unwrap().parse::<u128>().unwrap();
+    assert!(vault > 0, "a profitable day pays the deed");
+    assert_eq!(bal(&c, "items.test", JADE), vault, "the vault is held by the contract");
+
+    // Sold to bob with a real wallet transfer: the unclaimed vault goes with it; alice can no longer claim.
+    at("alice.test", 26 * TICK, 1);
+    c.nft_transfer(acc("bob.test"), "deed:lu-yan".into(), None, None);
+    let stolen = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        at("alice.test", 26 * TICK, 0);
+        let mut copy = with_deeds();
+        copy.deed_claim("deed:lu-yan".into());
+    }));
+    assert!(stolen.is_err());
+    at("bob.test", 26 * TICK, 0);
+    let before = bal(&c, "bob.test", JADE);
+    let claimed = c.deed_claim("deed:lu-yan".into()).0;
+    assert!(claimed >= vault);
+    assert_eq!(bal(&c, "bob.test", JADE), before + claimed);
+    assert_eq!(bal(&c, "items.test", JADE), 0);
+}
+
+#[test]
+#[should_panic(expected = "NOT_YOURS")]
+fn a_former_holder_cannot_claim() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    at("alice.test", 0, 1);
+    c.nft_transfer(acc("bob.test"), "deed:lu-yan".into(), None, None);
+    at("alice.test", 0, 0);
+    c.deed_claim("deed:lu-yan".into());
+}
+
+#[test]
+fn a_holder_who_runs_the_shop_overrules_the_agent_and_can_hand_it_back() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    c.deed_appoint_agent("deed:lu-yan".into(), false);
+    let agent = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut copy = with_deeds();
+        at("alice.test", 0, 0);
+        copy.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+        copy.deed_appoint_agent("deed:lu-yan".into(), false);
+        at("m-lu-yan.test", 0, 0);
+        copy.merchant_set_strategy(vec![("mat:essence-ember-1".into(), 12_000)], None);
+    }));
+    assert!(agent.is_err(), "the agent may not decide while the holder runs the shop");
+    at("alice.test", 0, 0);
+    c.deed_set_strategy("deed:lu-yan".into(), vec![("mat:essence-ember-1".into(), 13_000)], Some("ember".into()));
+    let books = c.market_merchant(acc("m-lu-yan.test"));
+    assert_eq!(books.specialty.as_deref(), Some("ember"));
+}
+
+#[test]
+fn a_holder_resells_at_their_price_and_the_ministry_takes_its_tax() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    c.deed_list("deed:lu-yan".into(), Some(U128(30_000)));
+    let alice = bal(&c, "alice.test", JADE);
+    at("bob.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(30_000));
+    let tax = 30_000 * pricing::tax_bps(0) as u128 / BPS as u128;
+    assert_eq!(bal(&c, "alice.test", JADE), alice + 30_000 - tax);
+    assert_eq!(c.nft_token("deed:lu-yan".into()).unwrap()["owner_id"], "bob.test");
+}
+
+#[test]
+#[should_panic(expected = "NOT_FOR_SALE")]
+fn an_unlisted_deed_cannot_be_bought_from_its_holder() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    at("bob.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(1_000_000));
+}
+
+#[test]
+#[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
+fn the_standard_transfer_needs_one_yocto() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    c.nft_transfer(acc("bob.test"), "deed:lu-yan".into(), None, None);
+}

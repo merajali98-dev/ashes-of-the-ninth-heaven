@@ -51,6 +51,9 @@ export function renderRules() {
     `pub const TAX_BASE_BPS: i128 = ${int(R.TAX.baseBps)};`,
     `pub const PATRON_MAX_PUBLIC_BPS: i128 = ${int(R.PATRONAGE.maxPublicBps)};`,
     `pub const PATRON_MAX_PATRONS: usize = ${int(R.PATRONAGE.maxPatrons)};`,
+    `pub const DEED_OWNER_SHARE_BPS: i128 = ${int(R.DEED.ownerShareBps)};`,
+    `pub const DEED_PRICE: u128 = ${int(R.DEED.priceCents)};`,
+    `pub const DEED_MAX_PER_ACCOUNT: usize = ${int(R.DEED.maxPerAccount)};`,
     `pub const MERCHANTS: [MerchantDef; ${R.MERCHANTS.length}] = [`,
     ...R.MERCHANTS.map(m => {
       const x = t(m.id);

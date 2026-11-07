@@ -54,6 +54,13 @@ export function settingsSection(state) {
     <div class="settings-list">${button('Manage seal', 'seal-open', '', {icon: 'jade'})}${button('Sign out on this device', 'seal-signout', '', {className: 'quiet'})}</div></section>`;
 }
 
+/** The chip at the top of every screen: Sign in, or the name of the seal in use. */
+export function headerChip(state) {
+  if (!state.loaded || (!state.ledger && !state.signIn)) return '';
+  if (state.signedIn && state.user?.seal) return `<button type="button" class="seal-chip sealed header-seal" data-action="seal-open" title="Your ledger seal">${esc(state.user.name)}</button>`;
+  return `<button type="button" class="seal-chip header-seal" data-action="seal-open">Sign in</button>`;
+}
+
 /** A small chip in the market header: practice market, or the seal in use. */
 export function marketChip(state) {
   if (!state.loaded || (!state.ledger && !state.signIn)) return '';

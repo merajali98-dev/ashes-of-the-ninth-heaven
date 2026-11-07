@@ -324,3 +324,30 @@ export function playerStalls(game, ui = {}) {
       ${yours ? `<h3>Your stall</h3><ul class="quick-list">${yours}</ul>` : ''}</section>
   </div>`;
 }
+
+/** Shop Deeds: NFTs that are the shops themselves. Holders take the owner's share into the deed's vault and run the shop. */
+export function shopDeeds(game, ui = {}) {
+  const intro = `<p class="microcopy">Whoever holds a deed owns that shop: ${R.DEED.ownerShareBps / 100}% of each profitable market day goes into the deed's vault, and the vault travels with the deed. Sell the deed and the shop's earnings and decisions go to the buyer.</p>`;
+  if (!onLedger()) {
+    return `<section class="quick-panel"><h2>Shop deeds</h2>${intro}<p>Deeds live on the Honest Ledger. Press your seal to buy one.</p>${button('Press your seal', 'seal-open', '', {icon: 'jade'})}</section>`;
+  }
+  const world = marketWorld(game), me = sealState.user?.seal?.id, purse = walletCents(game);
+  const deeds = [...(ledgerState.deeds ?? [])].sort((a, b) => (b.owner_id === me) - (a.owner_id === me));
+  const cards = deeds.map(d => {
+    const m = world.merchants[d.rules_id], name = m?.name ?? d.rules_id, mine = d.owner_id === me;
+    const holder = d.held_by_ministry ? 'The Ministry of Ash' : mine ? 'You' : String(d.owner_id).split('.')[0];
+    const vault = Number(d.vault), price = d.for_sale ? Number(d.for_sale) : 0;
+    const actions = mine ? [
+      vault > 0 ? button(`Claim ${R.jade(vault)} jade`, 'deed-claim', d.token_id, {className: 'primary compact'}) : '',
+      d.for_sale ? button('Take off sale', 'deed-unlist', d.token_id, {className: 'compact quiet'})
+        : `<form data-form="deed-list" data-id="${esc(d.token_id)}" class="deed-sell"><input name="price" type="number" min="1" step="1" placeholder="Price in jade" required aria-label="Price in jade"><button type="submit" class="btn compact quiet">Sell</button></form>`,
+      button(d.agent ? `I'll run the shop` : `Let ${name}'s agent decide`, 'deed-agent', `${d.token_id}|${!d.agent}`, {className: 'compact quiet'}),
+      d.agent ? '' : `<form data-form="deed-specialty" data-id="${esc(d.token_id)}" class="deed-sell"><select name="school" aria-label="Specialty today">${R.EDICT.schools.map(s => `<option value="${s}">${esc(schoolName[s] ?? s)}</option>`).join('')}</select><button type="submit" class="btn compact quiet">Specialise</button></form>`,
+    ].join('') : price ? button(`Buy for ${R.jade(price)} jade`, 'deed-buy', d.token_id, {className: 'compact', disabled: purse < price}) : '<small>Not for sale</small>';
+    return `<article class="deed-card ${mine ? 'mine' : ''}"><img class="deed-art" src="/deeds/${esc(d.rules_id)}.svg?at=${ledgerState.at}" alt="The deed to ${esc(name)}'s shop" loading="lazy">
+      <div class="deed-body"><h3>${esc(name)}</h3><p class="microcopy">Held by ${esc(holder)} · vault ${R.jade(vault)} jade · ${d.agent ? `${esc(name)}'s agent decides` : 'the holder decides'}</p>
+      <div class="quick-actions">${actions}</div>
+      <a class="microcopy" href="https://testnet.nearblocks.io/nft-token/${encodeURIComponent(ledgerState.contract ?? '')}/${encodeURIComponent(d.token_id)}" target="_blank" rel="noopener">Its history on the record</a></div></article>`; // chain-words-ok
+  }).join('');
+  return `<section class="quick-panel deeds-panel"><h2>Shop deeds</h2>${intro}<div class="deed-grid">${cards || '<p class="microcopy">No deeds yet.</p>'}</div></section>`;
+}

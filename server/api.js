@@ -2,6 +2,7 @@
 // player's "ledger seal" (their testnet account and device key); the relayer; and a status report for judges.
 // Players never see a wallet, recovery words or gas: an account is recovered by signing in again.
 import {createHash, randomBytes, randomInt, randomUUID, timingSafeEqual} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 import {HttpError, clientIp, cookie, parseCookies, rateLimiter, readJson, requireSameOrigin, sendJson} from './http.js';
 import {verifyGoogleToken} from './google.js';
 import {mailConfigured, sendSignInMail} from './mail.js';
@@ -264,6 +265,16 @@ export function createApi({store, chain, googleKeys} = {}) {
 
   return async function handle(req, res) {
     const url = new URL(req.url, 'http://localhost');
+    const deedPicture = /^\/deeds\/([a-z][a-z-]{1,30})\.svg$/.exec(url.pathname);
+    if (deedPicture && req.method === 'GET') {
+      try {
+        const picture = await deedSvg(await chain.market(), deedPicture[1]);
+        if (!picture) { res.writeHead(404).end('No such deed'); return; }
+        res.writeHead(200, {'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=60', 'X-Content-Type-Options': 'nosniff'});
+        res.end(picture);
+      } catch { res.writeHead(503).end('The ledger is unavailable'); }
+      return;
+    }
     const route = routes[`${req.method} ${url.pathname}`];
     try {
       if (!route) throw new HttpError(404, 'NOT_FOUND');
@@ -281,4 +292,44 @@ export function createApi({store, chain, googleKeys} = {}) {
       }
     }
   };
+}
+
+// ------------------------------------------------------------------ the deed's picture (NEP-171 media), drawn live
+
+const ART = new URL('../assets/art/', import.meta.url);
+const portraitCache = new Map();
+async function portrait(id) {
+  if (!portraitCache.has(id)) {
+    const file = id === 'black-bamboo' ? 'card-black-bamboo-testimony.webp' : `portrait-${id}.webp`;
+    portraitCache.set(id, readFile(new URL(file, ART)).then(b => 'data:image/webp;base64,' + b.toString('base64')).catch(() => ''));
+  }
+  return portraitCache.get(id);
+}
+const xml = text => String(text ?? '').replace(/[<>&"']/g, c => ({'<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;'}[c]));
+const jade = cents => (Number(cents) / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+export async function deedSvg(market, rulesId) {
+  const deed = market.deeds?.find(d => d.rules_id === rulesId), books = market.merchants.find(m => m.rules_id === rulesId);
+  if (!deed || !books) return null;
+  const holder = deed.held_by_ministry ? 'the Ministry of Ash' : String(deed.owner_id).split('.')[0];
+  const status = books.closed ? 'SHUTTERED' : books.status === 'struggling' ? 'STRUGGLING' : 'OPEN';
+  const sale = deed.for_sale ? `For sale · ${jade(deed.for_sale)} jade` : 'Not for sale';
+  const img = await portrait(rulesId);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="840" viewBox="0 0 600 840">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2230"/><stop offset="1" stop-color="#120f16"/></linearGradient>
+  <clipPath id="c"><circle cx="300" cy="250" r="150"/></clipPath></defs>
+  <rect width="600" height="840" rx="28" fill="url(#g)"/><rect x="14" y="14" width="572" height="812" rx="20" fill="none" stroke="#c8a064" stroke-width="3"/>
+  <text x="300" y="70" text-anchor="middle" font-family="Georgia,serif" font-size="22" letter-spacing="6" fill="#c8a064">DEED TO A SHOP</text>
+  ${img ? `<image href="${img}" x="150" y="100" width="300" height="300" clip-path="url(#c)" preserveAspectRatio="xMidYMid slice"/>` : ''}
+  <circle cx="300" cy="250" r="150" fill="none" stroke="#c8a064" stroke-width="4"/>
+  <text x="300" y="460" text-anchor="middle" font-family="Georgia,serif" font-size="44" fill="#ffe1a2">${xml(books.name)}</text>
+  <text x="300" y="500" text-anchor="middle" font-family="Georgia,serif" font-size="20" fill="${status === 'OPEN' ? '#9fd39a' : '#f0a09a'}" letter-spacing="4">${status}</text>
+  <g font-family="system-ui,Segoe UI,sans-serif" font-size="24" fill="#e9e2d6">
+    <text x="70" y="575">Purse</text><text x="530" y="575" text-anchor="end">${jade(books.cash)} jade</text>
+    <text x="70" y="620">Deed's vault</text><text x="530" y="620" text-anchor="end" fill="#ffe1a2">${jade(deed.vault)} jade</text>
+    <text x="70" y="665">Holder</text><text x="530" y="665" text-anchor="end">${xml(holder)}</text>
+    <text x="70" y="710">Decides</text><text x="530" y="710" text-anchor="end">${deed.agent ? "the merchant's agent" : 'the holder'}</text>
+  </g>
+  <text x="300" y="770" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" fill="#b3ab9e">${xml(sale)} · owner's share ${Number(deed.owner_share_bps) / 100}% of each good day</text>
+</svg>`;
 }

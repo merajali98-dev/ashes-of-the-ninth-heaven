@@ -46,7 +46,7 @@ const apiHandler = () => api ??= (async () => {
 
 export const server = createServer(async (req, res) => {
   try {
-    if (req.url.startsWith('/api/')) {
+    if (req.url.startsWith('/api/') || req.url.startsWith('/deeds/')) {
       await (await apiHandler())(req, res);
       return;
     }

@@ -100,7 +100,7 @@ function cancelCombatMotion({settle=false}={}) {
 }
 
 function renderShell() {
-  const markup=hub.shell(game,page);
+  const markup=hub.shell(game,page,{seal:onlineViews.headerChip(online.state)});
   if(markup===shellMarkup)return;
   const current=root.querySelector('.game-shell');
   if(!current)root.innerHTML=markup;
@@ -469,6 +469,14 @@ function activate(action,id = '') {
       const result=market.playerTrade(game,merchantId,token,action==='market-sell'?'sell':'buy',Number(quantity));
       if(result instanceof Promise){notify('Recording the trade on the Honest Ledger…');result.then(r=>change(action,r))}else change(action,result);break;
     }
+    case 'deed-buy':case 'deed-claim':case 'deed-unlist':case 'deed-agent': {
+      const [token,flag]=id.split('|'),deed=ledger.ledger.deeds.find(d=>d.token_id===token);
+      if(!deed){notify('That deed could not be found.',true);break}
+      notify('Recording it on the Honest Ledger…');
+      const done=action==='deed-buy'?ledger.buyDeed(game,deed):action==='deed-claim'?ledger.claimDeed(game,deed):action==='deed-unlist'?ledger.listDeed(game,deed,0):ledger.appointAgent(game,deed,flag==='true');
+      const said={'deed-buy':'The deed is yours. The shop\u2019s share of every good day now fills its vault.','deed-claim':'You took the deed\u2019s vault.','deed-unlist':'The deed is off sale.','deed-agent':flag==='true'?'The merchant\u2019s agent decides again.':'You run the shop now.'}[action];
+      done.then(r=>change(action,r.ok?{ok:true,message:said}:r));break;
+    }
     case 'listing-fill':case 'listing-cancel': {
       const [listingId,quantity]=id.split('|'),listing=ledger.ledger.listings.find(l=>String(l.id)===listingId);
       if(!listing){notify('That listing has just been sold or taken down.',true);render();break}
@@ -735,6 +743,13 @@ document.addEventListener('submit',event => {
   if (!form.dataset.form) return;
   event.preventDefault();
   const fields = new FormData(form);
+  if (form.dataset.form === 'deed-list' || form.dataset.form === 'deed-specialty') {
+    const deed=ledger.ledger.deeds.find(d=>d.token_id===form.dataset.id);if(!deed)return;
+    notify('Recording it on the Honest Ledger…');
+    const done=form.dataset.form==='deed-list'?ledger.listDeed(game,deed,Math.round(Number(fields.get('price'))*100)):ledger.setDeedSpecialty(game,deed,String(fields.get('school')||''));
+    done.then(r=>change('deed',r.ok?{ok:true,message:form.dataset.form==='deed-list'?'The deed is up for sale.':'The shop specialises as you chose today.'}:r));
+    return;
+  }
   if (form.dataset.form === 'listing') {
     const token=String(fields.get('token')||''),amount=Math.floor(Number(fields.get('amount'))),price=Math.round(Number(fields.get('price'))*100);
     if(!(amount>0)||!(price>0)){notify('Choose how many and a price.',true);return}

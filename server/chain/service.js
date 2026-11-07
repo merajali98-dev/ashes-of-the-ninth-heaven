@@ -12,7 +12,8 @@ import {CONTRACT, MINTER, PARENT, RELAYER, account, exists, loadAgentKey, loadKe
 import {MERCHANTS} from '../../js/market/merchant-rules.js';
 import {decryptSecret, encryptSecret} from '../secrets.js';
 
-export const PLAYER_METHODS = ['market_sell', 'market_buy', 'patron_invest', 'listing_create', 'listing_fill', 'listing_cancel'];
+export const PLAYER_METHODS = ['market_sell', 'market_buy', 'patron_invest', 'listing_create', 'listing_fill', 'listing_cancel',
+  'deed_buy', 'deed_list', 'deed_claim', 'deed_set_strategy', 'deed_appoint_agent'];
 const DEVICE_ALLOWANCE = BigInt(parseNearAmount('0.25'));
 const ACCOUNT_FUNDING = BigInt(parseNearAmount('0.01'));
 const FLOOR = {parent: BigInt(parseNearAmount('0.3')), relayer: BigInt(parseNearAmount('1'))};
@@ -209,10 +210,11 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     await need();
     if (Date.now() - books.at < 3000 && books.value) return books.value;
     const ids = await view('market_merchants');
-    const [tick, info, listings] = await Promise.all([view('market_tick'), view('contract_info'), view('listings', {limit: 200}).catch(() => [])]);
+    const [tick, info, listings, deeds] = await Promise.all([view('market_tick'), view('contract_info'), view('listings', {limit: 200}).catch(() => []),
+      view('deeds').catch(() => [])]);
     const merchants = [];
     for (let i = 0; i < ids.length; i += 3) merchants.push(...await Promise.all(ids.slice(i, i + 3).map(id => view('market_merchant', {merchant_id: id}))));
-    books = {at: Date.now(), value: {tick, testimonyBps: info.testimony_bps ?? 0, merchants, listings}};
+    books = {at: Date.now(), value: {tick, testimonyBps: info.testimony_bps ?? 0, merchants, listings, deeds}};
     return books.value;
   }
   async function balances(accountId, tokenIds) {

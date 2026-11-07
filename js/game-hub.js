@@ -24,7 +24,7 @@ const DOCK_SECONDARY = new Set(['inventory','forge','pets','trial','codex']);
 const dockButton = (id,glyph,label,page,inSheet=false) => `<button data-action="${inSheet ? 'dock-go' : 'nav'}" data-id="${id}" class="dock-button ${!inSheet && DOCK_SECONDARY.has(id) ? 'dock-secondary' : ''} ${id === page ? 'selected' : ''}" ${id === page ? 'aria-current="page"' : ''}>
         <span class="dock-icon">${picture(art(navArt[id]))}${icon(glyph)}</span><b>${label}</b></button>`;
 
-export function shell(game,page) {
+export function shell(game,page,extra={}) {
   const combat = game.active?.combat;
   return `<div class="game-shell page-${esc(page)}">
     <header class="game-topbar">
@@ -32,7 +32,7 @@ export function shell(game,page) {
         ${icon('crest')}<span>ASHES <small>OF THE NINTH HEAVEN</small></span></button>
       <div class="game-resources">${currency('heart',combat?.player.hp ?? game.hp,'Vitality')}
         ${currency('jade',game.jade,'Jade')}${currency('essence',game.essence,'Essence')}</div>
-      <div class="game-settings"><button class="icon-btn" data-action="help" aria-label="Field guide">${icon('book')}</button>
+      <div class="game-settings">${extra.seal || ''}<button class="icon-btn" data-action="help" aria-label="Field guide">${icon('book')}</button>
         <button class="icon-btn" data-action="sound" aria-label="${game.sound ? 'Mute' : 'Enable sound effects'}" aria-pressed="${game.sound}">${icon(game.sound ? 'sound' : 'mute')}</button>
         <button class="icon-btn" data-action="settings" aria-label="Settings">${icon('gear')}</button></div>
     </header>

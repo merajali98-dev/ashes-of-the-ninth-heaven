@@ -66,6 +66,10 @@ export const EVENTS = Object.freeze({periodTicks: 30, durationTicks: 8, list: [
 ]});
 /** Patrons may own up to 49% of a merchant (their stake against its starting purse) and share its daily profit. */
 export const PATRONAGE = Object.freeze({maxPublicBps: 4_900, maxPatrons: 10});
+// Shop Deeds (NEP-171, on the ledger only): the deed's holder takes this share of each profitable market day into the
+// deed's own vault; the Ministry sells each deed once at this price, paid into the shop's purse; one account may hold
+// at most this many deeds.
+export const DEED = Object.freeze({ownerShareBps: 1_000, priceCents: 10_000, maxPerAccount: 3});
 /** The Paper Taxman's cut of every trade. Collective Testimony (players clearing the campaign) lowers it. */
 export const TAX = Object.freeze({baseBps: 300});
 

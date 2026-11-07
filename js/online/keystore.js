@@ -5,7 +5,7 @@ import {createDeviceKey, publicKeyOf} from './signer.js';
 
 // The key id carries a version: when the market gains methods (listings, 2026-11-08) a fresh key is made, because a
 // key's permissions cannot change. The server adds the new key; the old one simply stops being used.
-const DB = 'ashes-ledger-seal', STORE = 'keys', ID = 'device-2';
+const DB = 'ashes-ledger-seal', STORE = 'keys', ID = 'device-3'; // 3: Shop Deeds methods (2026-11-08)
 let memory = null;
 
 function open() {

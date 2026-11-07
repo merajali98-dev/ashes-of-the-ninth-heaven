@@ -7,7 +7,7 @@ import {itemIcon} from './item-art.js';
 import {frameClasses, frameCrest, typeSeal, CARD_TYPES, cardForm} from './card-frame.js';
 import {effectBadges, mechanicBadges} from './game-symbols.js';
 import {icon, esc, titleCase, button, tag} from './ui.js';
-import {merchantsTab, playerStalls, priceBoard, quickTrade} from './market/views.js';
+import {merchantsTab, playerStalls, priceBoard, quickTrade, shopDeeds} from './market/views.js';
 
 const PAGE_SIZE=24;
 const gradeNames=['common','uncommon','rare','legendary'];
@@ -108,12 +108,13 @@ function legacyGoods(game,ui,selling=false) {
   }).join('')}</div>${list.length?'':empty(selling?'Nothing to sell':'No goods found',selling?'Expedition supplies and equipment appear here.':'Change your filters or progress through the chronicle.')}`;
 }
 
-export const SHOP_TABS=[['quick','Quick trade'],['merchants','Merchants'],['stalls','Player stalls'],['prices','Price board'],['cards','Techniques'],['goods','Gear'],['sell','Sell gear']];
+export const SHOP_TABS=[['quick','Quick trade'],['merchants','Merchants'],['stalls','Player stalls'],['deeds','Shop deeds'],['prices','Price board'],['cards','Techniques'],['goods','Gear'],['sell','Sell gear']];
 export function shop(game,ui={}) {
   const tabId=SHOP_TABS.some(([id])=>id===ui.tab)?ui.tab:'quick';
   let body;
   if(tabId==='quick') body=quickTrade(game,ui);
   else if(tabId==='stalls') body=playerStalls(game,ui);
+  else if(tabId==='deeds') body=shopDeeds(game,ui);
   else if(tabId==='merchants') body=merchantsTab(game,ui);
   else if(tabId==='prices') body=priceBoard(game);
   else if(tabId==='goods'||tabId==='sell') body=legacyGoods(game,ui,tabId==='sell');
