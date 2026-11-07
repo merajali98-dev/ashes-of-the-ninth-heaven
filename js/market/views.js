@@ -2,6 +2,8 @@
 import * as R from './merchant-rules.js';
 import {MARKET_TOKENS} from './tokens.js';
 import {bestPrices, marketWorld, playerQuote, walletCents} from './local.js';
+import {isActive as onLedger, ledger as ledgerState} from '../online/ledger.js';
+import {state as sealState} from '../online/session.js';
 import {CAST} from './npc.js';
 import {SHOCKS} from './engine.js';
 import {FAMILIES} from './fastforward.js';
@@ -260,5 +262,53 @@ export function quickTrade(game, ui = {}) {
     <section class="quick-panel quick-spotlight">${picture(portrait(spotlight), 'merchant-face')}<div><h2>${esc(merchantName(spotlight))}</h2><p>${esc(story)}</p>
       ${button(`Visit ${merchantName(spotlight)}`, 'market-merchant', spotlight, {className: 'quiet'})}</div></section>
     <div class="quick-more">${button('Open the full bazaar', 'tab', 'merchants', {icon: 'market'})}</div>
+  </div>`;
+}
+
+/** Player stalls: goods other cultivators put up at their own price, held in escrow on the Honest Ledger. */
+export function playerStalls(game, ui = {}) {
+  if (!onLedger()) {
+    return `<section class="quick-panel player-stalls"><h2>Player stalls</h2>
+      <p>Set your own price and other cultivators can buy from you, while you buy what they put up. Every stall lives on the Honest Ledger, so press your seal to open one.</p>
+      ${button('Press your seal', 'seal-open', '', {icon: 'jade'})}</section>`;
+  }
+  const world = marketWorld(game), me = sealState.user?.seal?.id;
+  const short = id => String(id).split('.')[0];
+  const priceNote = (tokenId, each) => {
+    const {ask} = bestPrices(game, tokenId);
+    if (!ask) return 'No merchant sells this right now.';
+    const merchant = world.merchants[ask.merchant]?.name ?? ask.merchant;
+    return each < ask.ask ? `Cheaper than ${merchant} (${R.jade(ask.ask)}).` : `${merchant} charges ${R.jade(ask.ask)}.`;
+  };
+  const row = (l, actions) => {
+    const token = world.tokens[l.token_id];
+    if (!token) return '';
+    return `<li class="quick-row">${tokenIcon(token)}<span class="quick-name"><b>${esc(token.name)}</b><small>${Number(l.amount)} listed by ${esc(short(l.seller))}</small></span>
+      <span class="quick-price"><small>${esc(priceNote(l.token_id, Number(l.price_each)))}</small><b class="stall-price">${R.jade(Number(l.price_each))} each</b></span>
+      <span class="quick-actions">${actions}</span></li>`;
+  };
+  const listings = ledgerState.listings ?? [];
+  const mine = listings.filter(l => l.seller === me), others = listings.filter(l => l.seller !== me);
+  const purse = walletCents(game);
+  const offers = others.map(l => {
+    const each = Number(l.price_each), many = Math.min(Number(l.amount), 10);
+    return row(l, button('Buy 1', 'listing-fill', `${l.id}|1`, {className: 'compact', disabled: purse < each}) +
+      (many > 1 ? button(`Buy ${many}`, 'listing-fill', `${l.id}|${many}`, {className: 'compact quiet', disabled: purse < each * many}) : ''));
+  }).join('');
+  const yours = mine.map(l => row(l, button('Take down', 'listing-cancel', String(l.id), {className: 'compact quiet'}))).join('');
+  const held = Object.keys(world.tokens).filter(id => owned(game, id) > 0);
+  const options = held.map(id => `<option value="${esc(id)}">${esc(world.tokens[id].name)} (you have ${owned(game, id)})</option>`).join('');
+  return `<div class="quick-trade">
+    <section class="quick-panel"><h2>From other cultivators</h2>
+      ${offers ? `<ul class="quick-list">${offers}</ul>` : '<p class="microcopy">No one has a stall open right now. Yours could be the first.</p>'}</section>
+    <section class="quick-panel"><h2>Open a stall</h2>
+      ${held.length ? `<form data-form="listing" class="stall-form">
+        <label class="seal-field"><span>Good</span><select name="token">${options}</select></label>
+        <div class="stall-form-row"><label class="seal-field"><span>How many</span><input name="amount" type="number" min="1" max="10000" value="1" required></label>
+        <label class="seal-field"><span>Price each (jade)</span><input name="price" type="number" min="0.01" step="0.01" placeholder="e.g. 2.50" required></label></div>
+        <button type="submit" class="btn">${icon('market')}List it</button></form>
+        <p class="microcopy">Your goods wait in escrow until someone buys them or you take them down. The Paper Taxman keeps his share of each sale.</p>`
+        : '<p class="microcopy">You carry nothing to list yet.</p>'}
+      ${yours ? `<h3>Your stall</h3><ul class="quick-list">${yours}</ul>` : ''}</section>
   </div>`;
 }

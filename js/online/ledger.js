@@ -8,7 +8,7 @@ import {MARKET_TOKENS} from '../market/tokens.js';
 import * as R from '../market/merchant-rules.js';
 import {state as session, sealCall} from './session.js';
 
-export const ledger = {active: false, books: null, balances: null, contract: null, at: 0, error: null, syncing: 0};
+export const ledger = {active: false, books: null, balances: null, listings: [], contract: null, at: 0, error: null, syncing: 0};
 const TOKENS = Object.keys(MARKET_TOKENS);
 const PLAYER = 'player';
 
@@ -33,6 +33,7 @@ export async function refresh() {
   try {
     const data = await get('/api/ledger');
     ledger.books = {tick: data.tick, testimonyBps: data.testimonyBps ?? 0, merchants: Object.fromEntries(data.merchants.map(m => [m.rules_id, m]))};
+    ledger.listings = data.listings ?? [];
     ledger.contract = data.contract;
     if (data.balances) ledger.balances = data.balances;
     ledger.active = Boolean(data.balances && data.contract);
@@ -122,7 +123,9 @@ export async function reconcile(game, reason = 'the game') {
   } finally { ledger.syncing--; }
 }
 
-const CODES = {PRICE_MOVED: 'Prices moved while you haggled. Look again and retry.', MERCHANT_CLOSED: 'That shop has closed.',
+const CODES = {NO_LISTING: 'That listing has just been sold or taken down.', OWN_LISTING: 'That is your own listing.', NOT_ENOUGH: 'There are not that many left.',
+  TOO_MANY_LISTINGS: 'You already have 20 listings up.', MARKET_FULL: 'The stalls are full right now. Try again later.', BAD_PRICE: 'Choose a price between 0.01 and 1,000,000 jade.',
+  NO_JADE: 'You need more jade for that.', NOT_YOURS: 'Only the seller can take that down.', PRICE_MOVED: 'Prices moved while you haggled. Look again and retry.', MERCHANT_CLOSED: 'That shop has closed.',
   PURSE_EMPTY: 'The merchant cannot pay for that right now.', OUT_OF_STOCK: 'The merchant has run out.', STOREROOM_FULL: 'The storeroom is full.',
   CLOSED: 'That shop has closed.', NOT_TRADED: 'This merchant does not trade that good.', BUSY: 'The Honest Ledger is busy. Try again in a minute.',
   SLOW_DOWN: 'Too many trades at once. Wait a moment.', NOT_HELD: 'You do not hold that many.', OFFLINE: 'The Honest Ledger is closed right now.'};
@@ -163,4 +166,44 @@ export async function invest(game, merchantId, cents) {
     refresh();
     return {ok: true, closed: books.closed, record: result.tx};
   } catch (error) { return {ok: false, reason: reasonFor(error.code)}; }
+}
+
+// ------------------------------------------------------------------ player stalls (listings held in escrow)
+
+const applyBalances = (game, next) => {
+  ledger.balances = next;
+  write(game, next);
+  game.ledgerSeal.mirror = {...next};
+};
+async function listingCall(method, args) {
+  try {
+    const result = await sealCall(ledger.contract, method, args);
+    return result.ok ? result : {ok: false, reason: reasonFor(result.code)};
+  } catch (error) { return {ok: false, reason: reasonFor(error.code)}; }
+}
+
+/** Puts goods up at your own price (jade cents each). They wait in escrow until bought or taken down. */
+export async function createListing(game, tokenId, amount, priceEach) {
+  const result = await listingCall('listing_create', {token_id: tokenId, amount: String(amount), price_each: String(priceEach)});
+  if (!result.ok) return result;
+  applyBalances(game, {...ledger.balances, [tokenId]: (ledger.balances[tokenId] ?? 0) - amount});
+  await refresh();
+  return {ok: true, record: result.tx};
+}
+
+export async function fillListing(game, listing, amount) {
+  const result = await listingCall('listing_fill', {listing_id: listing.id, amount: String(amount), max_price_each: listing.price_each});
+  if (!result.ok) return result;
+  const total = Number(result.receipt?.total ?? Number(listing.price_each) * amount);
+  applyBalances(game, {...ledger.balances, jade: ledger.balances.jade - total, [listing.token_id]: (ledger.balances[listing.token_id] ?? 0) + amount});
+  await refresh();
+  return {ok: true, total, record: result.tx};
+}
+
+export async function cancelListing(game, listing) {
+  const result = await listingCall('listing_cancel', {listing_id: listing.id});
+  if (!result.ok) return result;
+  applyBalances(game, {...ledger.balances, [listing.token_id]: (ledger.balances[listing.token_id] ?? 0) + Number(listing.amount)});
+  await refresh();
+  return {ok: true, record: result.tx};
 }

@@ -180,3 +180,9 @@
 .price-tip-layer span:last-child{border-top:0;padding-top:0}
 .price-tip-layer .tip-total{color:var(--gold-bright);font-weight:650;padding-top:4px;border-top:1px solid var(--line)}
 .price-tip-layer .tip-more{color:var(--muted);font-size:.75rem;font-style:normal}
+
+.stall-form{display:flex;flex-direction:column;gap:6px}
+.stall-form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stall-form select{min-height:40px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel-hi);color:var(--text);font:inherit}
+.stall-price{color:var(--gold-bright)}
+.player-stalls p{margin:0 0 12px}

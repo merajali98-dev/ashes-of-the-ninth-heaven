@@ -38,6 +38,36 @@ enum Key {
     Merchants,
     Seqs,
     Volume,
+    // Added with player listings. Appended, so earlier keys keep their prefixes; these collections are opened on
+    // demand (see `listings()`), so the stored contract struct is unchanged and the upgrade needs no migration.
+    Listings,
+    ListingCounts,
+}
+
+const MAX_OPEN_LISTINGS: usize = 400;
+const MAX_LISTINGS_PER_SELLER: u32 = 20;
+const OPEN_LISTINGS: &[u8] = b"listings:open";
+const NEXT_LISTING: &[u8] = b"listings:next";
+
+/// A player's listing: goods held by the contract in escrow, sold at the seller's price per unit.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct Listing {
+    pub id: u64,
+    pub seller: AccountId,
+    pub token_id: String,
+    pub amount: U128,
+    pub price_each: U128,
+    pub created_ms: u64,
+}
+
+#[near(serializers = [json])]
+pub struct ListingReceipt {
+    pub listing_id: u64,
+    pub token_id: String,
+    pub amount: U128,
+    pub total: U128,
+    pub tax: U128,
 }
 
 /// A registered good. `base` is the usual price in jade cents (0 for goods merchants never trade).
@@ -378,6 +408,112 @@ impl Contract {
         self.merchants.insert(merchant_id, m);
     }
 
+    // ------------------------------------------------------------------ player listings
+
+    /// Puts goods up for sale at your own price. They move into the contract's escrow until bought or cancelled.
+    pub fn listing_create(&mut self, token_id: String, amount: U128, price_each: U128) -> u64 {
+        require!(!self.paused, "PAUSED");
+        let seller = env::predecessor_account_id();
+        require!(!self.merchants.contains_key(&seller), "merchants trade through their agents");
+        let index = self.index_of(&token_id);
+        require!(index != JADE_INDEX, "jade is the currency, not a good");
+        require!(amount.0 > 0 && amount.0 <= 10_000, "BAD_AMOUNT");
+        require!(price_each.0 > 0 && price_each.0 <= 100_000_000, "BAD_PRICE");
+        let mut open = Self::open_listings();
+        require!(open.len() < MAX_OPEN_LISTINGS, "MARKET_FULL");
+        let mut counts = Self::listing_counts();
+        let mine = *counts.get(&seller).unwrap_or(&0);
+        require!(mine < MAX_LISTINGS_PER_SELLER, "TOO_MANY_LISTINGS");
+        let have = self.balance(&seller, index);
+        require!(have >= amount.0, "NOT_HELD");
+        self.set_balance(&seller, index, have - amount.0);
+        let escrow = env::current_account_id();
+        let held = self.balance(&escrow, index);
+        self.set_balance(&escrow, index, held + amount.0);
+        let id = env::storage_read(NEXT_LISTING).map_or(1, |b| u64::from_le_bytes(b.try_into().unwrap_or([0; 8])).max(1));
+        env::storage_write(NEXT_LISTING, &(id + 1).to_le_bytes());
+        Self::listing_store().insert(id, Listing { id, seller: seller.clone(), token_id: token_id.clone(), amount, price_each, created_ms: env::block_timestamp_ms() });
+        open.push(id);
+        Self::save_open_listings(&open);
+        counts.insert(seller.clone(), mine + 1);
+        emit_mt("mt_transfer", json!({"old_owner_id": seller, "new_owner_id": escrow, "token_ids": [token_id], "amounts": [amount], "memo": format!("listing #{id}")}));
+        id
+    }
+
+    /// Buys from a player's listing. The seller is paid at once, less the Ministry's trade tax.
+    pub fn listing_fill(&mut self, listing_id: u64, amount: U128, max_price_each: U128) -> ListingReceipt {
+        require!(!self.paused, "PAUSED");
+        let buyer = env::predecessor_account_id();
+        require!(!self.merchants.contains_key(&buyer), "merchants trade through their agents");
+        let mut listings = Self::listing_store();
+        let mut l = listings.get(&listing_id).cloned().unwrap_or_else(|| fail("NO_LISTING"));
+        require!(buyer != l.seller, "OWN_LISTING");
+        require!(l.price_each.0 <= max_price_each.0, "PRICE_MOVED");
+        require!(amount.0 > 0 && amount.0 <= l.amount.0, "NOT_ENOUGH");
+        let total = amount.0 * l.price_each.0;
+        let tax = total * pricing::tax_bps(self.testimony_bps as i128) as u128 / BPS as u128;
+        let index = self.index_of(&l.token_id);
+        let jade = self.balance(&buyer, JADE_INDEX);
+        require!(jade >= total, "NO_JADE");
+        self.set_balance(&buyer, JADE_INDEX, jade - total);
+        let seller_jade = self.balance(&l.seller, JADE_INDEX);
+        self.set_balance(&l.seller, JADE_INDEX, seller_jade + total - tax);
+        if tax > 0 {
+            let ministry = self.ministry_id.clone();
+            let have = self.balance(&ministry, JADE_INDEX);
+            self.set_balance(&ministry, JADE_INDEX, have + tax);
+        }
+        let escrow = env::current_account_id();
+        let held = self.balance(&escrow, index);
+        self.set_balance(&escrow, index, held - amount.0);
+        let got = self.balance(&buyer, index);
+        self.set_balance(&buyer, index, got + amount.0);
+        l.amount = U128(l.amount.0 - amount.0);
+        let memo = format!("listing #{listing_id}");
+        emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": buyer, "token_ids": [l.token_id], "amounts": [amount], "memo": memo}));
+        emit_mt("mt_transfer", json!({"old_owner_id": buyer, "new_owner_id": l.seller, "token_ids": [JADE], "amounts": [U128(total - tax)], "memo": memo}));
+        if tax > 0 {
+            emit_mt("mt_transfer", json!({"old_owner_id": buyer, "new_owner_id": self.ministry_id, "token_ids": [JADE], "amounts": [U128(tax)], "memo": "ministry tax"}));
+        }
+        let token_id = l.token_id.clone();
+        if l.amount.0 == 0 {
+            listings.remove(&listing_id);
+            drop(listings);
+            self.close_listing(listing_id, &l.seller);
+        } else {
+            listings.insert(listing_id, l);
+        }
+        ListingReceipt { listing_id, token_id, amount, total: U128(total), tax: U128(tax) }
+    }
+
+    /// Takes a listing down; the goods come back from escrow.
+    pub fn listing_cancel(&mut self, listing_id: u64) {
+        let seller = env::predecessor_account_id();
+        let mut listings = Self::listing_store();
+        let l = listings.get(&listing_id).cloned().unwrap_or_else(|| fail("NO_LISTING"));
+        require!(l.seller == seller, "NOT_YOURS");
+        listings.remove(&listing_id);
+        drop(listings);
+        let index = self.index_of(&l.token_id);
+        let escrow = env::current_account_id();
+        let held = self.balance(&escrow, index);
+        self.set_balance(&escrow, index, held - l.amount.0);
+        let have = self.balance(&seller, index);
+        self.set_balance(&seller, index, have + l.amount.0);
+        self.close_listing(listing_id, &seller);
+        emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": seller, "token_ids": [l.token_id], "amounts": [l.amount], "memo": format!("listing #{listing_id} cancelled")}));
+    }
+
+    /// Open listings, oldest first.
+    pub fn listings(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<Listing> {
+        let all = Self::listing_store();
+        Self::open_listings().iter().skip(from_index.unwrap_or(0) as usize).take(limit.unwrap_or(100).min(200) as usize)
+            .filter_map(|id| all.get(id).cloned()).collect()
+    }
+    pub fn listing(&self, listing_id: u64) -> Option<Listing> {
+        Self::listing_store().get(&listing_id).cloned()
+    }
+
     /// Anyone may bring merchants up to the current market hour (a keeper calls this so idle shops keep living).
     pub fn market_advance(&mut self, merchant_ids: Vec<AccountId>) {
         for id in merchant_ids {
@@ -538,6 +674,26 @@ impl Contract {
 
 // ---------------------------------------------------------------------- internals
 impl Contract {
+    fn listing_store() -> LookupMap<u64, Listing> {
+        LookupMap::new(Key::Listings)
+    }
+    fn listing_counts() -> LookupMap<AccountId, u32> {
+        LookupMap::new(Key::ListingCounts)
+    }
+    fn open_listings() -> Vec<u64> {
+        env::storage_read(OPEN_LISTINGS).map(|b| near_sdk::borsh::from_slice(&b).unwrap_or_default()).unwrap_or_default()
+    }
+    fn save_open_listings(open: &Vec<u64>) {
+        env::storage_write(OPEN_LISTINGS, &near_sdk::borsh::to_vec(open).unwrap());
+    }
+    fn close_listing(&mut self, listing_id: u64, seller: &AccountId) {
+        let mut open = Self::open_listings();
+        open.retain(|id| *id != listing_id);
+        Self::save_open_listings(&open);
+        let mut counts = Self::listing_counts();
+        let mine = *counts.get(seller).unwrap_or(&1);
+        if mine <= 1 { counts.remove(seller); } else { counts.insert(seller.clone(), mine - 1); }
+    }
     fn assert_owner(&self) {
         require!(env::predecessor_account_id() == self.owner_id, "only the owner");
     }

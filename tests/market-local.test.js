@@ -109,7 +109,7 @@ test('the best price helper finds the highest bid and the lowest ask', () => {
 });
 
 test('the shop sells materials only through merchants, and consumables only through Auntie Shi', () => {
-  assert.deepEqual(SHOP_TABS.map(([id]) => id), ['quick', 'merchants', 'prices', 'cards', 'goods', 'sell']);
+  assert.deepEqual(SHOP_TABS.map(([id]) => id), ['quick', 'merchants', 'stalls', 'prices', 'cards', 'goods', 'sell']);
   const game = started();
   game.bag = {'roadside-bitter-pill': 2, ...game.bag};
   const gear = shop(game, {tab: 'sell'});

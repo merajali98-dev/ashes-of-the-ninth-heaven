@@ -448,6 +448,13 @@ function activate(action,id = '') {
       const result=market.playerTrade(game,merchantId,token,action==='market-sell'?'sell':'buy',Number(quantity));
       if(result instanceof Promise){notify('Recording the trade on the Honest Ledger…');result.then(r=>change(action,r))}else change(action,result);break;
     }
+    case 'listing-fill':case 'listing-cancel': {
+      const [listingId,quantity]=id.split('|'),listing=ledger.ledger.listings.find(l=>String(l.id)===listingId);
+      if(!listing){notify('That listing has just been sold or taken down.',true);render();break}
+      notify('Recording it on the Honest Ledger…');
+      const done=action==='listing-fill'?ledger.fillListing(game,listing,Number(quantity)):ledger.cancelListing(game,listing);
+      done.then(r=>change(action,r.ok?{ok:true,message:action==='listing-fill'?`Bought ${quantity} for ${(r.total/100).toFixed(2)} jade.`:'Your listing is down; the goods are back in your pack.'}:r));break;
+    }
     case 'market-invest': {
       const [merchantId,jade]=id.split('|');
       const result=market.playerInvest(game,merchantId,Number(jade));
@@ -700,6 +707,13 @@ document.addEventListener('submit',event => {
   if (!form.dataset.form) return;
   event.preventDefault();
   const fields = new FormData(form);
+  if (form.dataset.form === 'listing') {
+    const token=String(fields.get('token')||''),amount=Math.floor(Number(fields.get('amount'))),price=Math.round(Number(fields.get('price'))*100);
+    if(!(amount>0)||!(price>0)){notify('Choose how many and a price.',true);return}
+    notify('Opening your stall on the Honest Ledger…');
+    ledger.createListing(game,token,amount,price).then(r=>change('listing',r.ok?{ok:true,message:`Listed ${amount} for ${(price/100).toFixed(2)} jade each.`}:r));
+    return;
+  }
   if (form.dataset.form === 'begin') {
     if (change('begin',gameRules.begin(game,String(fields.get('name') || ''),String(fields.get('difficulty') || 'wayfarer')),'home') && form.dataset.id) {
       openDialog(views.missionDetails(game,form.dataset.id));

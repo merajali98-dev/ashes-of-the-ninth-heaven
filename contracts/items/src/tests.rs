@@ -298,3 +298,90 @@ fn metadata_follows_the_nep245_extension() {
     assert!(c.mt_token(vec!["nope".into()])[0].is_none());
     assert_eq!(c.mt_token(vec![JADE.into()])[0].as_ref().unwrap().token_id, JADE);
 }
+
+// ---------------------------------------------------------------- player listings
+
+#[test]
+fn a_listing_escrows_goods_and_a_buyer_pays_the_seller_less_the_ministry_tax() {
+    let mut c = setup();
+    at("minter.test", 0, 0);
+    c.game_mint_batch(vec![MintEntry { account_id: acc("bob.test"), token_id: JADE.into(), amount: U128(10_000) }], 2, None);
+    at("alice.test", 1_000, 0);
+    let id = c.listing_create("mat:essence-ember-1".into(), U128(10), U128(250));
+    assert_eq!(bal(&c, "alice.test", "mat:essence-ember-1"), 50);
+    assert_eq!(bal(&c, "items.test", "mat:essence-ember-1"), 10, "held in escrow by the contract");
+    assert_eq!(c.listings(None, None).len(), 1);
+
+    at("bob.test", 2_000, 0);
+    let r = c.listing_fill(id, U128(4), U128(250));
+    assert_eq!(r.total.0, 1_000);
+    let tax = 1_000 * pricing::tax_bps(0) as u128 / BPS as u128;
+    assert_eq!(r.tax.0, tax);
+    assert_eq!(bal(&c, "bob.test", "mat:essence-ember-1"), 4);
+    assert_eq!(bal(&c, "bob.test", JADE), 9_000);
+    assert_eq!(bal(&c, "alice.test", JADE), 50_000 + 1_000 - tax);
+    assert_eq!(bal(&c, "ministry.test", JADE), tax);
+    assert_eq!(c.listing(id).unwrap().amount.0, 6, "a partial fill leaves the rest listed");
+    assert!(get_logs().iter().any(|l| l.contains("listing #1")));
+
+    c.listing_fill(id, U128(6), U128(300));
+    assert!(c.listing(id).is_none(), "a sold-out listing is closed");
+    assert!(c.listings(None, None).is_empty());
+    assert_eq!(bal(&c, "items.test", "mat:essence-ember-1"), 0);
+}
+
+#[test]
+#[should_panic(expected = "PRICE_MOVED")]
+fn a_buyer_never_pays_more_than_their_limit() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    let id = c.listing_create("mat:essence-ember-1".into(), U128(5), U128(300));
+    at("bob.test", 0, 0);
+    c.listing_fill(id, U128(1), U128(299));
+}
+
+#[test]
+#[should_panic(expected = "OWN_LISTING")]
+fn a_seller_cannot_buy_their_own_listing() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    let id = c.listing_create("mat:essence-ember-1".into(), U128(5), U128(300));
+    c.listing_fill(id, U128(1), U128(300));
+}
+
+#[test]
+#[should_panic(expected = "NOT_HELD")]
+fn you_can_only_list_what_you_hold() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    c.listing_create("mat:essence-ember-1".into(), U128(61), U128(300));
+}
+
+#[test]
+fn the_seller_cancels_and_the_goods_come_back() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    let id = c.listing_create("mat:essence-ember-1".into(), U128(5), U128(300));
+    c.listing_cancel(id);
+    assert_eq!(bal(&c, "alice.test", "mat:essence-ember-1"), 60);
+    assert!(c.listing(id).is_none());
+    assert!(c.listings(None, None).is_empty());
+}
+
+#[test]
+#[should_panic(expected = "NOT_YOURS")]
+fn only_the_seller_cancels() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    let id = c.listing_create("mat:essence-ember-1".into(), U128(5), U128(300));
+    at("bob.test", 0, 0);
+    c.listing_cancel(id);
+}
+
+#[test]
+#[should_panic(expected = "merchants trade through their agents")]
+fn merchants_do_not_list() {
+    let mut c = setup();
+    at("m-lu-yan.test", 0, 0);
+    c.listing_create("mat:essence-ember-1".into(), U128(1), U128(300));
+}

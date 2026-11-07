@@ -3,7 +3,9 @@
 // lives for this tab only; signing in again on reload simply adds a new one.
 import {createDeviceKey, publicKeyOf} from './signer.js';
 
-const DB = 'ashes-ledger-seal', STORE = 'keys', ID = 'device';
+// The key id carries a version: when the market gains methods (listings, 2026-11-08) a fresh key is made, because a
+// key's permissions cannot change. The server adds the new key; the old one simply stops being used.
+const DB = 'ashes-ledger-seal', STORE = 'keys', ID = 'device-2';
 let memory = null;
 
 function open() {
