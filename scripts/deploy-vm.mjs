@@ -32,7 +32,7 @@ const dir = mkdtempSync(join(tmpdir(), 'ashes-deploy-'));
 const tarball = join(dir, 'release.tgz');
 const files = [tarball, join(ROOT, 'deploy', 'setup.sh')];
 try {
-  run('git', ['archive', '--format=tar.gz', '-o', quote(tarball), 'HEAD'], {shell: false});
+  run('git', ['archive', '--format=tar.gz', '-o', tarball, 'HEAD'], {shell: false});
   let envFile = '';
   if (sendEnv) {
     const local = existsSync(join(ROOT, '.env')) ? Object.fromEntries(readFileSync(join(ROOT, '.env'), 'utf8').split(/\r?\n/)
