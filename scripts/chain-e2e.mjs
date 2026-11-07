@@ -8,13 +8,17 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomBytes} from 'node:crypto';
 
-process.env.PORT = '0';
-process.env.ASHES_STORE ||= join(tmpdir(), `ashes-e2e-${Date.now()}.json`);
-const {server} = await import('../server.js');
+// ASHES_BASE=https://ashes-ninth.duckdns.org npm run chain:e2e   checks the hosted server instead of a local one.
+let server = null, base = process.env.ASHES_BASE;
+if (!base) {
+  process.env.PORT = '0';
+  process.env.ASHES_STORE ||= join(tmpdir(), `ashes-e2e-${Date.now()}.json`);
+  ({server} = await import('../server.js'));
+  if (!server.listening) await once(server, 'listening');
+  base = `http://127.0.0.1:${server.address().port}`;
+}
 const {createDeviceKey, publicKeyOf, signDelegate} = await import('../js/online/signer.js');
 const {CONTRACT, merchantAccount, view} = await import('../server/chain/near.js');
-if (!server.listening) await once(server, 'listening');
-const base = `http://127.0.0.1:${server.address().port}`;
 
 let jar = '';
 async function api(method, path, body) {
@@ -62,6 +66,6 @@ try {
 
   console.log(JSON.stringify({ok: true, account: accountId, tx: `https://testnet.nearblocks.io/txns/${result.tx}`, status: await api('GET', '/api/status')}, null, 1));
 } finally {
-  server.closeAllConnections();
-  server.close();
+  server?.closeAllConnections();
+  server?.close();
 }
