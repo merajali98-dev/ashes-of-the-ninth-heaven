@@ -49,7 +49,7 @@ try {
     files.push(envFile);
     console.log(`  settings: ${Object.keys(settings).filter(k => !k.startsWith('NEAR_KEY_')).join(', ')} + ${Object.keys(settings).filter(k => k.startsWith('NEAR_KEY_')).length} testnet keys`);
   }
-  run('gcloud', ['compute', 'scp', ...files.map(quote), `${VM}:~`, `--zone=${ZONE}`, '--quiet', '--strict-host-key-checking=no']);
+  run('gcloud', ['compute', 'scp', ...files.map(quote), `${VM}:.`, `--zone=${ZONE}`, '--quiet', '--strict-host-key-checking=no']);
   const remoteEnv = envFile ? ' ~/' + envFile.split(/[\\/]/).pop() : '';
   run('gcloud', ['compute', 'ssh', VM, `--zone=${ZONE}`, '--quiet', '--strict-host-key-checking=no',
     `--command=${quote(`sudo bash ~/setup.sh ${DOMAIN} ~/release.tgz${remoteEnv} && rm -f ~/setup.sh`)}`]);
