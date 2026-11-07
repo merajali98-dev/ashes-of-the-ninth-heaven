@@ -62,4 +62,19 @@ export async function view(methodName, args = {}, contractId = CONTRACT) {
   return read(p => p.callFunction({contractId, method: methodName, args}));
 }
 export const newKeyPair = () => KeyPair.fromRandom('ed25519');
+
+// Merchant agent keys (function-call only: merchant_set_strategy), kept apart from full keys.
+const agentDir = join(homedir(), '.near-credentials', NETWORK + '-agents');
+const agentEnv = id => 'NEAR_AGENT_KEY_' + id.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+export async function loadAgentKey(accountId) {
+  if (process.env[agentEnv(accountId)]) return process.env[agentEnv(accountId)];
+  const file = join(agentDir, accountId + '.json');
+  return existsSync(file) ? JSON.parse(await readFile(file, 'utf8')).private_key : null;
+}
+export async function saveAgentKey(accountId, keyPair) {
+  await mkdir(agentDir, {recursive: true});
+  await writeFile(join(agentDir, accountId + '.json'), JSON.stringify({account_id: accountId, public_key: keyPair.getPublicKey().toString(),
+    private_key: keyPair.toString()}), {mode: 0o600});
+}
+export const agentEnvName = agentEnv;
 export const explorer = id => `https://testnet.nearblocks.io/address/${id}`;

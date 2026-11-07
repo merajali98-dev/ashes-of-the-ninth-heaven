@@ -34,6 +34,7 @@ export async function refresh() {
     const data = await get('/api/ledger');
     ledger.books = {tick: data.tick, testimonyBps: data.testimonyBps ?? 0, merchants: Object.fromEntries(data.merchants.map(m => [m.rules_id, m]))};
     ledger.listings = data.listings ?? [];
+    ledger.journal = data.journal ?? {};
     ledger.contract = data.contract;
     if (data.balances) ledger.balances = data.balances;
     ledger.active = Boolean(data.balances && data.contract);

@@ -10,6 +10,7 @@ import { pipeline } from 'node:stream';
 import { openStore } from './server/store.js';
 import { createChain } from './server/chain/service.js';
 import { createApi } from './server/api.js';
+import { createAgents } from './server/agents.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 4173);
@@ -39,6 +40,7 @@ const apiHandler = () => api ??= (async () => {
   const store = await openStore();
   const chain = createChain({store});
   chain.flushMints().catch(() => {}); // finish any grants a previous run left queued
+  if (!process.env.NODE_TEST_CONTEXT && process.env.ASHES_AGENTS !== 'off') createAgents({store, chain}).start(); // the merchants decide once a market day
   return createApi({store, chain});
 })();
 
@@ -121,5 +123,6 @@ server.on('error', async error => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log('Ashes of the Ninth Heaven • http://127.0.0.1:' + server.address().port);
+  if (!process.env.NODE_TEST_CONTEXT) apiHandler(); // start the minter queue and the merchant agents at once
   if (openOnStart) openGame();
 });

@@ -8,7 +8,8 @@
 // practice market and every method here reports `offline`.
 import {createHash} from 'node:crypto';
 import {actions, buildDelegateAction, encodeDelegateAction, parseNearAmount, PublicKey, Signature, teraToGas} from 'near-api-js';
-import {CONTRACT, MINTER, PARENT, RELAYER, account, exists, loadKey, newKeyPair, provider, view} from './near.js';
+import {CONTRACT, MINTER, PARENT, RELAYER, account, exists, loadAgentKey, loadKey, merchantAccount, newKeyPair, provider, view} from './near.js';
+import {MERCHANTS} from '../../js/market/merchant-rules.js';
 import {decryptSecret, encryptSecret} from '../secrets.js';
 
 export const PLAYER_METHODS = ['market_sell', 'market_buy', 'patron_invest', 'listing_create', 'listing_fill', 'listing_cancel'];
@@ -226,6 +227,26 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
   }
   const forgetBooks = () => { books = {at: 0, value: null}; };
 
+  /** A merchant agent's decision, signed with its strategy-only key and relayed. */
+  let agentKeys = null;
+  async function agentsReady() {
+    agentKeys ??= Promise.all(MERCHANTS.map(m => loadAgentKey(merchantAccount(m.id)))).then(keys => keys.every(Boolean));
+    return agentKeys;
+  }
+  async function agentCall(merchantId, methodName, args) {
+    await need();
+    const key = await loadAgentKey(merchantId);
+    if (!key) throw new ChainError('NO_AGENT_KEY');
+    const {Account} = await import('near-api-js');
+    const agent = new Account(merchantId, provider, key);
+    const {signedDelegate} = await agent.createSignedMetaTransaction({receiverId: CONTRACT, blockHeightTtl: 120,
+      actions: [actions.functionCall(methodName, args, teraToGas(100), 0n)]});
+    const result = await relayed(async () => (await account(RELAYER)).signAndSendTransaction({receiverId: merchantId,
+      actions: [actions.signedDelegate(signedDelegate)], waitUntil: 'EXECUTED_OPTIMISTIC', throwOnFailure: false}));
+    const failure = failureOf(result);
+    return failure ? {ok: false, code: codeOf(failure), tx: result.transaction.hash} : {ok: true, tx: result.transaction.hash};
+  }
+
   async function report() {
     const base = {network: 'testnet', contract: CONTRACT, online: await online(), queuedGrants: store.data.mints.queue.length,
       grantInFlight: Boolean(store.data.mints.inflight), ...status};
@@ -236,7 +257,7 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     } catch (error) { return {...base, rpcError: error.message}; }
   }
 
-  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, quote, forgetBooks, report,
+  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, quote, forgetBooks, report, agentsReady, agentCall,
     contract: CONTRACT, parent: PARENT};
 }
 

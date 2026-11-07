@@ -16,6 +16,7 @@ import {installPriceTooltips} from './market/tooltip.js';
 import * as online from './online/session.js';
 import * as onlineViews from './online/views.js';
 import * as ledger from './online/ledger.js';
+import {crierFromLedger, crierFromLog, snapshot as ledgerSnapshot} from './market/crier.js';
 
 const root = document.querySelector('#app');
 const toast = document.querySelector('#toast');
@@ -167,9 +168,21 @@ function persist() {
   if(ledger.isActive())ledger.reconcile(game).then(code=>{if(!code)return;gameRules.writeSave(storage,game);render();
     notify(code==='REWARD_CAP'?'The Honest Ledger records only so many rewards an hour. That one was not kept.':'The Honest Ledger could not record that change, so it was undone.',true)});
 }
+// The town crier: one line at a time, never over a dialog or a battle.
+const crierQueue=[];let crierBusy=false;
+function cry(lines){
+  crierQueue.push(...lines.slice(-2));crierQueue.splice(0,Math.max(0,crierQueue.length-3));pumpCrier();
+}
+function pumpCrier(){
+  if(crierBusy||!crierQueue.length)return;
+  if(dialog.open||combatBusy||page==='battle'){setTimeout(pumpCrier,5000);return}
+  crierBusy=true;notify('The crier: '+crierQueue.shift());setTimeout(()=>{crierBusy=false;pumpCrier()},7000);
+}
 /** Loads the ledger's market and the player's balances into the save (when the seal is pressed). */
 async function syncLedger(){
+  const before=ledgerSnapshot(ledger.ledger);
   await ledger.refresh();
+  cry(crierFromLedger(before,ledgerSnapshot(ledger.ledger)));
   if(!ledger.isActive())return false;
   market.marketWorld(game);
   if(!ledger.ledger.syncing)ledger.applyToSave(game);
@@ -860,5 +873,6 @@ setInterval(()=>{
   const passed=market.advance(game,Date.now());
   if(!passed.hours)return;
   persist();
+  cry(crierFromLog(passed.events));
   if(page==='market'&&!dialog.open&&!combatBusy&&!root.querySelector('.price-tip:hover,.price-tip:focus'))render();
 },15_000);

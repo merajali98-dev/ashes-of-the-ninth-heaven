@@ -9,7 +9,8 @@ import {mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync} from 'node
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {MINTER, PARENT, RELAYER, loadKey} from '../server/chain/near.js';
+import {MINTER, PARENT, RELAYER, agentEnvName, loadAgentKey, loadKey, merchantAccount} from '../server/chain/near.js';
+import {MERCHANTS} from '../js/market/merchant-rules.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const DOMAIN = process.env.ASHES_DOMAIN || 'ashes-ninth.duckdns.org';
@@ -44,10 +45,15 @@ try {
       if (!key) throw new Error('No local key for ' + id);
       settings['NEAR_KEY_' + id.toUpperCase().replace(/[^A-Z0-9]/g, '_')] = key;
     }
+    for (const m of MERCHANTS) {
+      const id = merchantAccount(m.id), key = await loadAgentKey(id);
+      if (key) settings[agentEnvName(id)] = key; // function-call only: merchant_set_strategy
+    }
     envFile = join(dir, 'ashes-env-' + Date.now());
     writeFileSync(envFile, Object.entries(settings).map(([k, v]) => `${k}=${v}`).join('\n') + '\n', {mode: 0o600});
     files.push(envFile);
-    console.log(`  settings: ${Object.keys(settings).filter(k => !k.startsWith('NEAR_KEY_')).join(', ')} + ${Object.keys(settings).filter(k => k.startsWith('NEAR_KEY_')).length} testnet keys`);
+    const secret = k => k.startsWith('NEAR_KEY_') || k.startsWith('NEAR_AGENT_KEY_');
+    console.log(`  settings: ${Object.keys(settings).filter(k => !secret(k)).join(', ')} + ${Object.keys(settings).filter(secret).length} testnet keys`);
   }
   run('gcloud', ['compute', 'scp', ...files.map(quote), `${VM}:.`, `--zone=${ZONE}`, '--quiet', '--strict-host-key-checking=no']);
   const remoteEnv = envFile ? ' ~/' + envFile.split(/[\\/]/).pop() : '';

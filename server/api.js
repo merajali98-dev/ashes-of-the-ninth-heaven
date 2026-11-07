@@ -178,7 +178,8 @@ export function createApi({store, chain, googleKeys} = {}) {
       const user = currentUser(req);
       const market = await chain.market();
       const balances = user?.player ? await chain.balances(user.player.accountId, LEDGER_TOKENS) : null;
-      return {ledger: {...market, balances, seal: user?.player?.accountId ?? null, contract: chain.contract}};
+      const journal = Object.fromEntries(Object.entries(data.journal ?? {}).map(([id, entries]) => [id, entries[0]]));
+      return {ledger: {...market, balances, seal: user?.player?.accountId ?? null, contract: chain.contract, journal}};
     },
 
     'GET /api/ledger/quote': async (req, _body, url) => {
@@ -243,6 +244,8 @@ export function createApi({store, chain, googleKeys} = {}) {
       store.save();
       return {ok: true, granted};
     },
+
+    'GET /api/journal': async () => ({ledger: data.journal ?? {}}),
 
     'GET /api/status': async () => ({...(await chain.report()), players: Object.keys(data.users).length,
       seals: Object.values(data.users).filter(u => u.player).length}),

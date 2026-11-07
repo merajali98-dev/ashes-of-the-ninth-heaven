@@ -103,3 +103,8 @@ document.querySelectorAll('[data-act]').forEach(button => button.addEventListene
 session.load().then(showSeal);
 loadLedger().catch(error => { $('#merchants tbody').innerHTML = `<tr><td colspan="5">The ledger is offline here (${esc(error.code || error.message)}). Run the hosted game, or set testnet keys.</td></tr>`; });
 loadStatus().catch(() => { $('#status').textContent = 'Status unavailable.'; });
+api('/api/journal').then(({ledger: journal}) => {
+  const rows = Object.entries(journal).map(([id, [e]]) => e && `<li><b>${esc(id)}</b> <span class="muted">(${e.source === 'near-ai' ? 'NEAR AI' : 'rules'}, day ${e.day + 1})</span><br>“${esc(e.say)}”
+    <br><span class="muted">${(e.changes ?? []).map(c => `${esc(c.name)} ${c.from / 100}% → ${c.to / 100}%`).join(' · ') || 'no changes'}</span>${txLink(e.tx)}</li>`).filter(Boolean);
+  $('#journal').innerHTML = rows.join('') || '<li class="muted">No decisions yet today; the first comes within a few minutes of the market day starting.</li>';
+}).catch(() => { $('#journal').innerHTML = '<li class="muted">Journal unavailable.</li>'; });

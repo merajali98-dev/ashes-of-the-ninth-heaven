@@ -186,3 +186,10 @@
 .stall-form select{min-height:40px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel-hi);color:var(--text);font:inherit}
 .stall-price{color:var(--gold-bright)}
 .player-stalls p{margin:0 0 12px}
+
+.stall-journal{margin-top:8px;padding:8px 10px;border-left:2px solid var(--gold);background:rgba(200,160,100,.06);border-radius:0 6px 6px 0}
+.stall-journal p{margin:2px 0;font-style:italic;color:var(--text)}
+.stall-journal small{color:var(--muted)}
+
+.sim-story{margin:0 0 10px;padding:10px 14px;border:1px solid var(--gold);border-radius:8px;background:rgba(200,160,100,.08);font:1.05rem var(--serif);color:var(--text)}
+.sim-story b{color:var(--gold-bright);margin-right:6px;font-family:inherit}

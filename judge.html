@@ -67,6 +67,11 @@ code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px
       <p class="muted" id="contract"></p>
       <div style="overflow-x:auto"><table id="merchants"><thead><tr><th>Merchant</th><th>Account</th><th class="num">Purse (jade)</th><th>Status</th><th class="num">Patrons</th></tr></thead><tbody><tr><td colspan="5" class="muted">Loading…</td></tr></tbody></table></div>
     </section>
+    <section class="wide">
+      <h2>The merchants' agents</h2>
+      <p class="muted">Once a market day each merchant decides what to keep, in character through NEAR AI (or by its rules if the model is unavailable), and signs it from its own account with a key that can only call <code>merchant_set_strategy</code>. The contract clamps every target to 60–160%.</p>
+      <ul class="log" id="journal"><li class="muted">Loading…</li></ul>
+    </section>
     <section>
       <h2>Fast-forward a week</h2>
       <p class="muted">The same rules and engine, played by simulated traders for 7 days in a minute. Nothing is sent to the chain; it is labelled as a simulation.</p>
