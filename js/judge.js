@@ -53,7 +53,7 @@ $('#make-seal').addEventListener('click', async () => {
     await session.load();
     if (!session.state.ledger) throw new Error('The ledger is offline on this server.');
     if (!session.state.signedIn) await session.guest('Judge');
-    await session.ensureSeal('judge-' + Math.random().toString(36).slice(2, 7));
+    await session.ensureSeal('jury-' + Math.random().toString(36).slice(2, 7));
     showSeal();
     log(true, `Made ${accountLink(session.state.user.seal.id)}: one transaction from the game's parent account created it with the browser's market-only key.`);
     for (let i = 0; i < 20 && !((await balances())[TOKEN] > 0); i++) await new Promise(r => setTimeout(r, 1500));
