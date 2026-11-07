@@ -64,6 +64,36 @@ try {
   console.log(`  relayer refused mt_transfer: ${refused}`);
   if (!refused) throw new Error('The relayer accepted a method outside the market');
 
+  // Proof of battle: the server deals a seed, the commission is fought with the game's own rules, the server replays it
+  // and only then the minter grants the rewards.
+  const rules = await import('../js/progression.js');
+  const game = rules.freshGame(7);
+  rules.begin(game, 'Trial', 'wayfarer');
+  let won = null;
+  for (let attempt = 0; attempt < 4 && !won; attempt++) {
+    game.hp = rules.maxHp(game);
+    const dealt = await api('POST', '/api/battle/start', {school: 'ember', tier: 1, inputs: rules.battleInputs(game), difficulty: game.difficulty});
+    rules.startBounty(game, 'ember', 1, dealt);
+    const combat = game.active.combat;
+    for (let guard = 0; guard < 600 && !combat.outcome; guard++) {
+      let played = false;
+      for (let i = 0; i < combat.hand.length && !played; i++) played = rules.fight(game, 'play', i).ok;
+      if (!played) rules.fight(game, 'end');
+    }
+    if (combat.outcome === 'victory') won = {battleId: dealt.battleId, actions: game.active.actions};
+    game.active = null;
+  }
+  if (!won) throw new Error('The autopilot lost four commissions');
+  const sealBefore = await balance(accountId, 'mat:seal-jade-1');
+  const claim = await api('POST', '/api/battle/claim', won);
+  for (let i = 0; i < 30 && (await balance(accountId, 'mat:seal-jade-1')) === sealBefore; i++) await wait(1500);
+  const sealAfter = await balance(accountId, 'mat:seal-jade-1');
+  console.log(`+ commission replayed by the server (${won.actions.length} actions); minted ${JSON.stringify(claim.granted)}; Seal Jade ${sealBefore} → ${sealAfter}`);
+  if (sealAfter - sealBefore !== BigInt(claim.granted['mat:seal-jade-1'])) throw new Error('The commission reward did not arrive');
+  const again = await api('POST', '/api/battle/claim', won).then(() => false, error => /ALREADY_CLAIMED/.test(error.message));
+  console.log(`  a second claim of the same battle refused: ${again}`);
+  if (!again) throw new Error('A battle was paid twice');
+
   console.log(JSON.stringify({ok: true, account: accountId, tx: `https://testnet.nearblocks.io/txns/${result.tx}`, status: await api('GET', '/api/status')}, null, 1));
 } finally {
   server?.closeAllConnections();
