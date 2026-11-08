@@ -1,6 +1,6 @@
 // Deploys the committed game (git HEAD) to the Google Cloud VM behind https://ashes-ninth.duckdns.org.
 //   npm run deploy            → ship the code; keep the settings already on the VM
-//   npm run deploy -- --env   → also send settings: GOOGLE_CLIENT_ID, NEAR_AI_API_KEY, RESEND_API_KEY from .env, and the
+//   npm run deploy -- --env   → also send settings: GOOGLE_CLIENT_ID, NEAR_AI_API_KEY, SMTP_* or RESEND_API_KEY from .env, and the
 //                               testnet keys of the parent, relayer and minter from the local keychain
 // Uses only the `ashes` gcloud configuration (never the default one). Secrets are written to a private temp file,
 // copied, and removed; they are never printed. The VM makes its own server secrets once (deploy/setup.sh).
@@ -39,7 +39,7 @@ try {
     const local = existsSync(join(ROOT, '.env')) ? Object.fromEntries(readFileSync(join(ROOT, '.env'), 'utf8').split(/\r?\n/)
       .filter(line => /^[A-Z0-9_]+=/.test(line)).map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)])) : {};
     const settings = {ASHES_PUBLIC_URL: `https://${DOMAIN}`};
-    for (const name of ['GOOGLE_CLIENT_ID', 'NEAR_AI_API_KEY', 'NEAR_AI_MODEL', 'RESEND_API_KEY', 'ASHES_MAIL_FROM']) if (local[name]) settings[name] = local[name];
+    for (const name of ['GOOGLE_CLIENT_ID', 'NEAR_AI_API_KEY', 'NEAR_AI_MODEL', 'RESEND_API_KEY', 'ASHES_MAIL_FROM', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS']) if (local[name]) settings[name] = local[name];
     for (const id of [PARENT, RELAYER, MINTER]) {
       const key = await loadKey(id);
       if (!key) throw new Error('No local key for ' + id);

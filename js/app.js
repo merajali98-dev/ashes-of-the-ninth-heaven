@@ -309,7 +309,7 @@ function settings() {
 let sealFlow={};
 let haggleFlow=null;
 const SEAL_ERRORS={BAD_EMAIL:'That email does not look right.',WRONG_CODE:'That code is not right. Check it and try again.',
-  CODE_EXPIRED:'That code has expired. Ask for a new one.',SLOW_DOWN:'Too many tries. Wait a few minutes and try again.',
+  CODE_EXPIRED:'That code has expired. Ask for a new one.',MAIL_FAILED:'The email could not be sent just now. Try again, or sign in with Google.',SLOW_DOWN:'Too many tries. Wait a few minutes and try again.',
   NAME_TAKEN:'That name is already in the ledger. Choose another.',BAD_NAME:'Names use 3–20 lowercase letters, numbers or dashes, starting with a letter.',
   BUSY:'The Honest Ledger is busy. Try again in a minute.',GOOGLE_REFUSED:'Google could not confirm that sign-in.',OFFLINE:'The Honest Ledger is closed right now. The practice market still works.'};
 const sealError=error=>SEAL_ERRORS[error?.code]||'Something went wrong. Try again in a moment.';

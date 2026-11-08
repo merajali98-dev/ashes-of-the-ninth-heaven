@@ -29,7 +29,7 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
 | Requirement | Where it lives | Proof |
 |---|---|---|
 | **Items as NEP-245 tokens in one contract** | `contracts/items/src/lib.rs`: jade and all 873 goods are token ids; standard `mt_*` methods and `nep245` events; merchants hold real balances | `npm run contract:test` (51 tests) · `chain:verify` |
-| **Social or email login; no seed phrases, wallet pop-ups or gas prompts** | Google (ID token verified server-side, `server/google.js`) or an emailed code/link, or guest. The server creates `<name>.ashes-ninth.testnet`; the browser makes a non-extractable WebCrypto key (`js/online/signer.js`) that can only call the game's market methods. Trades are NEP-366 delegate actions; the relayer pays the gas | `tests/api.test.js`, `tests/online-signer.test.js`, `tests/no-chain-words.test.js` (no chain words reach a player) · `chain:e2e` |
+| **Social or email login; no seed phrases, wallet pop-ups or gas prompts** | Google (ID token verified server-side, `server/google.js`), a 6-digit code or one-time link sent by email (`server/smtp.js`, `server/mail.js`), or guest. The server creates `<name>.ashes-ninth.testnet`; the browser makes a non-extractable WebCrypto key (`js/online/signer.js`) that can only call the game's market methods. Trades are NEP-366 delegate actions; the relayer pays the gas | `tests/api.test.js`, `tests/online-signer.test.js`, `tests/no-chain-words.test.js` (no chain words reach a player) · `chain:e2e` |
 | **One readable pricing rules file, and a tooltip with the merchant's reasoning** | [`js/market/merchant-rules.js`](js/market/merchant-rules.js) (pure, integer-only, under 340 lines). Generated into Rust (`rules_gen.rs`); every price tooltip is `explain()` from the same file | `tests/market-trace.test.js` + `contracts/items/tests/parity.rs` (a recorded market week: 3,218 steps; plus 6,354 haggle and job cases) · `chain:verify` live parity |
 | **Fast-forward: a week in a minute** | [`/#market-sim`](https://ashes-ninth.duckdns.org/#market-sim): simulated traders play the same rules for 7 days in about a minute, with flood and audit scenarios; clearly labelled as a simulation | `tests/market-sim.test.js` |
 | **The game loop designed on paper** | [`docs/game-loop.md`](docs/game-loop.md): the 30-second, 5-minute and session loops, written before the market code | |
@@ -61,8 +61,6 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
 - **A quiet testnet needs help to stay open.** One live market hour lasts 5 real minutes, and if players leave a shop
   shuttered for two hours the contract owner rekindles it with openly minted jade ("ministry relief"). Both are
   documented in [`docs/agents.md`](docs/agents.md).
-- **Email sign-in on the demo.** Without an email provider configured, the hosted demo shows the sign-in code on screen
-  instead of mailing it. Google sign-in is fully verified.
 - **NEAR AI chooses words and options, never prices.** If the model is down, slow or wrong, the rules decide alone.
 - **Sponsored gas has limits:** 600 relayed calls per account per day, and the relayer stops below 1 NEAR.
 

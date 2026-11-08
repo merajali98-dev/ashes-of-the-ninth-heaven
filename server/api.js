@@ -93,7 +93,8 @@ export function createApi({store, chain, googleKeys} = {}) {
       store.save();
       const link = `${origin(req)}/api/auth/link?k=${key}&t=${token}`;
       if (mailConfigured()) {
-        await sendSignInMail({to: email, code, link});
+        try { await sendSignInMail({to: email, code, link}); }
+        catch (error) { console.error('mail', error.message); delete data.codes[key]; store.save(); throw new HttpError(502, 'MAIL_FAILED'); }
         return {sent: true};
       }
       return {sent: false, dev: {code, link}}; // development sign-in: shown on screen instead of emailed
