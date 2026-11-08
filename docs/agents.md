@@ -61,6 +61,21 @@ narrowest spread (after full loyalty), so buying low and selling straight back l
 | An agent key does something else | It is a function-call key for two methods on one contract, with no deposit |
 | A deed holder runs the shop, but the agent keeps hiring | `merchant_post_job` is refused with `DEED_HOLDER_DECIDES`, as `merchant_set_strategy` is |
 
+## Keeping a quiet testnet bazaar alive
+
+Merchants pay upkeep every open market hour and earn only when cultivators trade. With few players, an idle shop
+shutters after about 36 market days, sooner if its agent keeps restocking. Two operator levers keep the live testnet
+bazaar open for visitors. Both are visible on the ledger:
+
+- **The live clock.** One market hour lasts 5 real minutes (`set_clock`, owner only). The contract rebases its clock so
+  no market hour is skipped or repeated. The fast-forward page still shows a week in a minute.
+- **Ministry relief.** If players leave a shop shuttered for two real hours, the game server (as the contract owner)
+  calls `ministry_rekindle`. This mints jade in the open (an `mt_mint` event, memo "ministry relief") up to half the
+  shop's starting purse, booked as capital, not profit. The merchant's journal says so. Players can rekindle a shop
+  first with `patron_invest` and become its patrons.
+- **Thrift.** An agent whose purse is under half its start may not ask for more stock or post a job (`thrifty` in
+  `server/agents.js`).
+
 ## Tests
 
 - `npm run contract:test` (`contracts/items/src/tests.rs`):

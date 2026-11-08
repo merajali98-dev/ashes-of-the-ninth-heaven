@@ -703,3 +703,59 @@ fn a_deed_holder_who_runs_the_shop_also_decides_its_hiring() {
     c.deed_appoint_agent("deed:lu-yan".into(), false);
     lu_posts_a_job(&mut c, 5);
 }
+
+// ---------------------------------------------------------------------- the clock and Ministry relief
+
+#[test]
+fn the_clock_can_slow_down_without_skipping_or_repeating_a_market_hour() {
+    let mut c = setup();
+    let start = 1_000_000 * TICK; // a contract that has run for a while, as on testnet
+    c.genesis_ms = start;
+    at("owner.test", start + 10 * TICK + 30_000, 0);
+    assert_eq!(c.market_tick(), 10);
+    c.set_clock(5 * TICK);
+    assert_eq!(c.market_tick(), 10, "the same market hour right after the change");
+    at("anyone.test", start + 10 * TICK + 30_000 + 5 * TICK, 0);
+    assert_eq!(c.market_tick(), 11, "then one market hour per five minutes");
+}
+
+#[test]
+#[should_panic(expected = "only the owner")]
+fn only_the_owner_sets_the_clock() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    c.set_clock(1_000);
+}
+
+#[test]
+fn ministry_relief_rekindles_only_shuttered_shops_with_openly_minted_jade() {
+    let mut c = setup();
+    // Lu Yan sits idle for 40 market days: upkeep shutters her shop.
+    for day in (6..=40).step_by(6) {
+        at("anyone.test", 24 * day * TICK, 0);
+        c.market_advance(vec![lu()]);
+    }
+    at("anyone.test", 24 * 40 * TICK, 0);
+    c.market_advance(vec![lu()]);
+    assert!(c.merchants.get(&lu()).unwrap().state.closed);
+    let supply = c.mt_supply(JADE.into()).unwrap().0;
+    let purse = bal(&c, "m-lu-yan.test", JADE);
+    at("owner.test", 24 * 40 * TICK, 0);
+    let minted = c.ministry_rekindle(vec![lu()]);
+    assert_eq!(minted.len(), 1);
+    assert_eq!(bal(&c, "m-lu-yan.test", JADE), 125_000, "half of her 2,500-jade starting purse");
+    assert_eq!(c.mt_supply(JADE.into()).unwrap().0, supply + (125_000 - purse), "every jade of relief is minted in the open");
+    assert!(get_logs().iter().any(|l| l.contains("ministry relief") && l.contains("mt_mint")));
+    at("anyone.test", 24 * 40 * TICK + 2 * TICK, 0);
+    assert_eq!(c.market_merchant(lu()).status, "open", "she reopens at the next market hour");
+    at("owner.test", 24 * 40 * TICK + 2 * TICK, 0);
+    assert!(c.ministry_rekindle(vec![lu()]).is_empty(), "an open shop gets nothing");
+}
+
+#[test]
+#[should_panic(expected = "only the owner")]
+fn only_the_owner_grants_relief() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    c.ministry_rekindle(vec![lu()]);
+}

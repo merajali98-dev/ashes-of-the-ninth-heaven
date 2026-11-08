@@ -28,6 +28,8 @@ use rules_gen::{BPS, DEED_MAX_PER_ACCOUNT, DEED_OWNER_SHARE_BPS, DEED_PRICE, JOB
 
 pub const JADE: &str = "jade";
 const JADE_INDEX: u32 = 0;
+/// Ministry relief rekindles a shuttered shop to this share of its starting purse (an operator lever, see `ministry_rekindle`).
+const RELIEF_BPS: i128 = 5_000;
 const GAS_FOR_RESOLVE: Gas = Gas::from_tgas(20);
 const GAS_RESERVE: Gas = Gas::from_tgas(10);
 
@@ -430,6 +432,39 @@ impl Contract {
     pub fn set_base_uri(&mut self, base_uri: Option<String>) {
         self.assert_owner();
         self.base_uri = base_uri;
+    }
+
+    /// Changes how long a market hour lasts in real time. The clock is rebased so the current market hour stays the
+    /// same: no merchant skips or repeats an hour.
+    pub fn set_clock(&mut self, tick_ms: u64) {
+        self.assert_owner();
+        require!(tick_ms >= 1_000, "a market hour lasts at least a second");
+        let tick = self.current_tick();
+        self.genesis_ms = env::block_timestamp_ms().saturating_sub(tick * tick_ms);
+        self.tick_ms = tick_ms;
+        emit("ashes", "1.0.0", "market_clock", json!({"tick": tick, "tick_ms": tick_ms}));
+    }
+
+    /// Ministry relief, for a testnet bazaar with too few players to keep its shops alive: each listed shop that is
+    /// shuttered is rekindled to RELIEF_BPS of its starting purse with newly minted jade (an `mt_mint` event with the memo
+    /// "ministry relief"), booked as capital, not profit. Owner only; players rekindle shops themselves with `patron_invest`.
+    pub fn ministry_rekindle(&mut self, merchant_ids: Vec<AccountId>) -> Vec<(AccountId, U128)> {
+        self.assert_owner();
+        let mut out = vec![];
+        for id in merchant_ids {
+            let mut m = self.caught_up(&id);
+            let line = (m.def().start_cash * RELIEF_BPS / BPS) as i64;
+            if m.state.closed && m.state.cash < line {
+                let minted = line - m.state.cash;
+                m.state.cash = line;
+                m.capital_in += minted;
+                self.add_supply(JADE_INDEX, minted as i128);
+                emit_mt("mt_mint", json!({"owner_id": id, "token_ids": [JADE], "amounts": [minted.to_string()], "memo": "ministry relief"}));
+                out.push((id.clone(), U128(minted as u128)));
+            }
+            self.merchants.insert(id, m);
+        }
+        out
     }
 
     // ------------------------------------------------------------------ the market (deposit-free: limited keys may call)

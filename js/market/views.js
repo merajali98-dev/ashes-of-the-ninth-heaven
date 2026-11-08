@@ -46,7 +46,7 @@ export function journalNote(m) {
   const record = entry.tx ? ` · <a href="https://testnet.nearblocks.io/txns/${encodeURIComponent(entry.tx)}" target="_blank" rel="noopener">See the record</a>` : ''; // chain-words-ok
   const hiring = entry.job?.ok ? ` · hiring ${entry.job.units} ${esc(entry.job.name)} at ${R.jade(entry.job.payEach)} each` : '';
   return `<div class="stall-journal"><span class="eyebrow">${esc(m.name)}'s decision today</span><p>“${esc(entry.say)}”</p>
-    <small>${changes || 'No changes'}${hiring}${entry.source === 'rules' ? ' · decided by the shop rules' : ' · decided in character'}${record}</small></div>`;
+    <small>${changes || 'No changes'}${hiring}${entry.source === 'rules' ? ' · decided by the shop rules' : entry.source === 'ministry' ? ' · Ministry relief' : ' · decided in character'}${record}</small></div>`;
 }
 /** A price with the merchant's reasoning: shown on hover, keyboard focus or tap. */
 export function priceTip(price, lines, label, extra = '') {

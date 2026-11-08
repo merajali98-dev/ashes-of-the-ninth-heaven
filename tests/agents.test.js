@@ -70,3 +70,30 @@ test('the crier tells what changed on the ledger: a closure, a new week, a decis
   assert.deepEqual(crierFromLedger(after, after), [], 'nothing new, nothing cried');
   assert.deepEqual(crierFromLedger(null, after), [], 'the first reading is not news');
 });
+
+test('a merchant with a thin purse stops asking for more stock and stops hiring', async () => {
+  const {thrifty} = await import('../server/agents.js');
+  const b = books('lu-yan');
+  const decision = {targets: [['a', 12_000], ['b', 8_000]], changes: [{token: 'a', from: 10_000, to: 12_000}, {token: 'b', from: 10_000, to: 8_000}], job: {token: 'a'}};
+  assert.deepEqual(thrifty(b, decision), decision, 'a full purse decides freely');
+  const thin = thrifty({...b, cash: '100000'}, decision);
+  assert.deepEqual(thin.targets, [['b', 8_000]]);
+  assert.equal(thin.job, null);
+});
+
+test('a shop left shuttered by players is rekindled by the Ministry, once, after a wait', async () => {
+  const store = {data: {}, save() {}}, relief = [];
+  const all = R.MERCHANTS.slice(0, 2).map(m => books(m.id));
+  all[0].closed = true;
+  const chain = {online: async () => true, agentsReady: async () => true, forgetBooks() {},
+    market: async () => ({tick: 30, merchants: all}), agentCall: async () => ({ok: true, tx: 't'}),
+    ministryRelief: async ids => { relief.push(ids); return {ok: true, tx: 'relief-tx'}; }};
+  const agents = createAgents({store, chain, decide: async (b, t, rules) => rules, perRound: 20, reliefAfter: 50});
+  await agents.round();
+  assert.equal(relief.length, 0, 'players get time to rekindle it first');
+  await new Promise(r => setTimeout(r, 60));
+  await agents.round();
+  assert.deepEqual(relief, [[all[0].account_id]]);
+  assert.equal(store.data.journal[all[0].rules_id][0].source, 'ministry');
+  assert.equal(store.data.journal[all[0].rules_id][0].tx, 'relief-tx');
+});

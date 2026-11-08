@@ -150,7 +150,7 @@ session.load().then(showSeal);
 loadLedger().catch(error => { $('#merchants tbody').innerHTML = `<tr><td colspan="5">The ledger is offline here (${esc(error.code || error.message)}). Run the hosted game, or set testnet keys.</td></tr>`; });
 loadStatus().catch(() => { $('#status').textContent = 'Status unavailable.'; });
 api('/api/journal').then(({ledger: journal, haggles}) => {
-  const rows = Object.entries(journal).map(([id, [e]]) => e && `<li><b>${esc(id)}</b> <span class="muted">(${e.source === 'near-ai' ? 'NEAR AI' : 'rules'}, day ${e.day + 1})</span><br>“${esc(e.say)}”
+  const rows = Object.entries(journal).map(([id, [e]]) => e && `<li><b>${esc(id)}</b> <span class="muted">(${e.source === 'near-ai' ? 'NEAR AI' : e.source === 'ministry' ? 'Ministry relief, by the contract owner' : 'rules'}, day ${e.day + 1})</span><br>“${esc(e.say)}”
     <br><span class="muted">${(e.changes ?? []).map(c => `${esc(c.name)} ${c.from / 100}% → ${c.to / 100}%`).join(' · ') || 'no changes'}</span>${txLink(e.tx)}
     ${e.job ? `<br><span class="muted">Hiring: ${esc(e.job.units)} ${esc(e.job.name)} at ${jade(e.job.payEach)} each, ${e.job.ok ? 'posted' : `refused (${esc(e.job.code)})`}</span>${txLink(e.job.tx)}` : ''}</li>`).filter(Boolean);
   $('#haggles').innerHTML = (haggles ?? []).slice(0, 8).map(h => `<li><b>${esc(h.name ?? h.rules_id)}</b> · ${esc(h.player)} offered ${jade(h.offer)} against ${jade(h.posted)}:

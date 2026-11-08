@@ -136,8 +136,17 @@ export async function aiDecision(books, tick, rules, {fetchImpl = fetch, apiKey 
   } catch { return rules; }
 }
 
-/** Runs the agents on a timer: at most a few merchants per minute, each once per market day. */
-export function createAgents({store, chain, decide = aiDecision, every = 60_000, perRound = 3}) {
+/** A merchant whose purse is under half its start does not ask for more stock or hire: that is how idle shops go broke. */
+export function thrifty(books, decision) {
+  const def = R.MERCHANTS.find(m => m.id === books.rules_id);
+  if (!def || Number(books.cash) * R.BPS >= def.startCash * 5_000) return decision;
+  const changes = decision.changes.filter(c => c.to <= c.from);
+  return {...decision, changes, targets: changes.map(c => [c.token, c.to]), job: null};
+}
+
+/** Runs the agents on a timer: at most a few merchants per minute, each once per market day. Also the Ministry's
+ *  relief: a shop shuttered for `reliefAfter` (real time) that no player has rekindled is rekindled by the owner. */
+export function createAgents({store, chain, decide = aiDecision, every = 60_000, perRound = 3, reliefAfter = 2 * 3600e3}) {
   const data = store.data;
   let timer = null, running = false;
   async function round() {
@@ -146,12 +155,26 @@ export function createAgents({store, chain, decide = aiDecision, every = 60_000,
     try {
       const market = await chain.market();
       const day = Math.floor(market.tick / R.TIME.ticksPerDay);
+      data.closedSince ??= {};
+      const now = Date.now();
+      for (const m of market.merchants) if (m.closed) data.closedSince[m.account_id] ??= now; else delete data.closedSince[m.account_id];
+      const relief = market.merchants.filter(m => m.closed && now - data.closedSince[m.account_id] >= reliefAfter);
+      if (relief.length && chain.ministryRelief) {
+        const result = await chain.ministryRelief(relief.map(m => m.account_id));
+        for (const m of relief) {
+          data.journal ??= {};
+          data.journal[m.rules_id] = [{day, at: now, source: 'ministry', changes: [], tx: result.tx ?? null, ok: result.ok, code: result.ok ? null : result.code,
+            say: `The Ministry of Ash has rekindled ${m.name}'s shop. Patrons who put jade in now share what it earns.`}, ...(data.journal[m.rules_id] ?? [])].slice(0, 12);
+          if (result.ok) delete data.closedSince[m.account_id];
+        }
+        store.save();
+      }
       const due = market.merchants.filter(m => (data.agents?.[m.account_id]?.day ?? -1) < day).slice(0, perRound);
       for (const books of due) {
         const rules = rulesDecision(books, market.tick);
         rules.jobOptions = jobOptions(books, market.tick, market.testimonyBps ?? 0);
         rules.job = rules.jobOptions[0] ? settleJob(books, rules.jobOptions[0]) : null;
-        const decision = await decide(books, market.tick, rules);
+        const decision = thrifty(books, await decide(books, market.tick, rules));
         const result = await chain.agentCall(books.account_id, 'merchant_set_strategy', {target_bps: decision.targets, specialty: decision.specialty});
         const entry = {day, at: Date.now(), say: decision.say, source: decision.source, specialty: decision.specialty,
           changes: decision.changes.map(c => ({token: c.token, name: name(c.token), from: c.from, to: c.to})), tx: result.tx ?? null,

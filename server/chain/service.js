@@ -255,6 +255,16 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     return failure ? {ok: false, code: codeOf(failure), tx: result.transaction.hash} : {ok: true, tx: result.transaction.hash};
   }
 
+  /** Ministry relief: the contract's owner rekindles shuttered shops (`ministry_rekindle`, minted in the open). */
+  async function ministryRelief(merchantIds) {
+    await need();
+    const result = await relayed(async () => (await account(PARENT)).signAndSendTransaction({receiverId: CONTRACT,
+      actions: [actions.functionCall('ministry_rekindle', {merchant_ids: merchantIds}, teraToGas(200), 0n)], waitUntil: 'EXECUTED_OPTIMISTIC', throwOnFailure: false}));
+    forgetBooks();
+    const failure = failureOf(result);
+    return failure ? {ok: false, code: codeOf(failure), tx: result.transaction.hash} : {ok: true, minted: valueOf(result, CONTRACT) ?? [], tx: result.transaction.hash};
+  }
+
   async function report() {
     const base = {network: 'testnet', contract: CONTRACT, online: await online(), queuedGrants: store.data.mints.queue.length,
       grantInFlight: Boolean(store.data.mints.inflight), ...status};
@@ -266,7 +276,7 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
   }
 
   return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, haggles, quote, forgetBooks, report, agentsReady, agentCall,
-    contract: CONTRACT, parent: PARENT};
+    ministryRelief, contract: CONTRACT, parent: PARENT};
 }
 
 function defaultEnabled() {
