@@ -1,18 +1,100 @@
 # Ashes of the Ninth Heaven
 
+**A xianxia deckbuilding RPG whose market is a real economy on NEAR.** Nine merchants are AI agents with their own
+accounts, purses and reasons. Every card, material and coin is a NEP-245 token in one contract. Every price comes from one readable
+rules file that the browser, the fast-forward simulation and the contract all run, and every price can tell you why it
+is what it is. Players sign in with Google or email: no wallet, no recovery words, no gas.
+
+- **Play:** https://ashes-ninth.duckdns.org (NEAR testnet)
+- **Judge's Desk:** https://ashes-ninth.duckdns.org/judge. One click makes a throwaway testnet account; each button sends a
+  real transaction (trade, haggle, deliver a job, buy a Shop Deed, a forbidden move) and links to it on the explorer.
+- **Contract:** [`items.ashes-ninth.testnet`](https://testnet.nearblocks.io/address/items.ashes-ninth.testnet) ·
+  merchants `m-<name>.ashes-ninth.testnet`
+- **Tracks:** Games (primary) · NFTs (Shop Deeds) · AI agents (merchants that decide, hire and haggle) · Open
+
+| Haggling with an agent | Merchants hiring players | Shop Deeds (NEP-171) |
+|---|---|---|
+| ![A haggle: Granny Qiu accepts 10.40 jade, in character](docs/preview-haggle.png) | ![Merchants hiring: jobs paid from escrow](docs/preview-hiring.png) | ![Shop Deeds: NFTs that are the shops](docs/preview-deeds.png) |
+
+## Verify it yourself
+
+| Command | What it proves | Needs |
+|---|---|---|
+| `npm install && npm run verify` | Everything offline: 212 node tests (rules, parity fixtures, generated contract inputs, the committed wasm checksum, the API and relayer checks, battle replay, agents) and 51 contract tests plus the JS↔Rust parity replays | Node 22+; Rust for the contract tests (skipped with a note otherwise) |
+| `npm run chain:verify` | Read-only, against the live contract: it runs the committed wasm; 40+ live quotes match the rules file exactly; escrow balances (deed vaults + job wages); 9 deeds; every agent key is limited to its two methods | Node, internet. No keys, no transactions |
+| `ASHES_BASE=https://ashes-ninth.duckdns.org npm run chain:e2e` | The whole online path through the hosted API: guest sign-in → device key → new account → welcome grant → relayed sale at the exact quote → a forbidden method refused → a haggle countered in character and taken → a commission replayed before its reward, and not paid twice | Node, internet. Creates one testnet account |
+
+## The brief, requirement by requirement
+
+| Requirement | Where it lives | Proof |
+|---|---|---|
+| **Items as NEP-245 tokens in one contract** | `contracts/items/src/lib.rs`: jade and all 873 goods are token ids; standard `mt_*` methods and `nep245` events; merchants hold real balances | `npm run contract:test` (51 tests) · `chain:verify` |
+| **Social or email login; no seed phrases, wallet pop-ups or gas prompts** | Google (ID token verified server-side, `server/google.js`) or an emailed code/link, or guest. The server creates `<name>.ashes-ninth.testnet`; the browser makes a non-extractable WebCrypto key (`js/online/signer.js`) that can only call the game's market methods. Trades are NEP-366 delegate actions; the relayer pays the gas | `tests/api.test.js`, `tests/online-signer.test.js`, `tests/no-chain-words.test.js` (no chain words reach a player) · `chain:e2e` |
+| **One readable pricing rules file, and a tooltip with the merchant's reasoning** | [`js/market/merchant-rules.js`](js/market/merchant-rules.js) (pure, integer-only, under 340 lines). Generated into Rust (`rules_gen.rs`); every price tooltip is `explain()` from the same file | `tests/market-trace.test.js` + `contracts/items/tests/parity.rs` (a recorded market week: 3,218 steps; plus 6,354 haggle and job cases) · `chain:verify` live parity |
+| **Fast-forward: a week in a minute** | [`/#market-sim`](https://ashes-ninth.duckdns.org/#market-sim): simulated traders play the same rules for 7 days in about a minute, with flood and audit scenarios; clearly labelled as a simulation | `tests/market-sim.test.js` |
+| **The game loop designed on paper** | [`docs/game-loop.md`](docs/game-loop.md): the 30-second, 5-minute and session loops, written before the market code | |
+| **NFTs** | **Shop Deeds** (NEP-171): one per merchant. The holder takes 10% of each profitable day into the deed's vault (which moves with the deed) and runs the shop or appoints its agent. The picture is drawn live from the ledger | [`docs/shop-deeds.md`](docs/shop-deeds.md): spec and threat model mapped to 7 contract tests |
+| **AI agents** | Each merchant decides its strategy daily and hires players for its shortages, in character through NEAR AI, signed with its own key that can call only `merchant_set_strategy` and `merchant_post_job`. Players haggle: the contract decides by the rules file; the agent only speaks, and may not change the price | [`docs/agents.md`](docs/agents.md): spec and threat model mapped to 16 contract tests, a parity fixture and node tests |
+| **Rewards that cannot be faked** | Commissions: the server deals the seed, the browser records the actions, the server replays the battle with the game's own combat code before the minter mints the reward, once | `tests/battle-replay.test.js` · `chain:e2e` |
+
+## How it fits together
+
+```
+ Browser (the game)                          Game server (Node, no framework)              NEAR testnet
+ ─────────────────                           ────────────────────────────────              ────────────
+ js/market/merchant-rules.js  ◄── same file ──► server/agents.js ── NEAR AI (words,      items.ashes-ninth.testnet
+   quotes + "why?" tooltips                     choices within limits) ─ agent keys ──►   NEP-245 goods + jade,
+ WebCrypto device key ── signed delegate ──►  relayer (checks, pays gas) ─────────────►   NEP-171 Shop Deeds,
+   (NEP-366, market methods only)             minter (after battle replay) ───────────►   market, haggles, jobs,
+ practice market (before sign-in)             owner: live clock, Ministry relief ─────►   listings (rules_gen.rs
+                                                                                           = merchant-rules.js)
+```
+
+## Honest limits
+
+- **Testnet only.** Jade and goods have no real-world value.
+- **Custody.** The game creates each account and keeps its full-access recovery key encrypted on the server, so signing
+  in again on a new device recovers it. The browser's own key can only call the game's market methods. There is no
+  export of the recovery key yet.
+- **The minter is trusted for rewards.** Battle rewards are minted after the server replays the battle with the game's
+  own code. That check runs on the server, not in the contract.
+- **A quiet testnet needs help to stay open.** One live market hour lasts 5 real minutes, and if players leave a shop
+  shuttered for two hours the contract owner rekindles it with openly minted jade ("ministry relief"). Both are
+  documented in [`docs/agents.md`](docs/agents.md).
+- **Email sign-in on the demo.** Without an email provider configured, the hosted demo shows the sign-in code on screen
+  instead of mailing it. Google sign-in is fully verified.
+- **NEAR AI chooses words and options, never prices.** If the model is down, slow or wrong, the rules decide alone.
+- **Sponsored gas has limits:** 600 relayed calls per account per day, and the relayer stops below 1 NEAR.
+
+## Repository map
+
+| Path | What |
+|---|---|
+| `js/market/merchant-rules.js` | The one pricing file: prices, haggling, jobs, purses, caravans, patrons, deeds |
+| `contracts/items/` | The Rust contract (`lib.rs`, `pricing.rs` ported line by line, generated `rules_gen.rs`), tests, and the committed `res/items.wasm` with its SHA-256 |
+| `server/` | `api.js` (sign-in, seal, relay, ledger, battles), `chain/service.js` (relayer, minter queue), `agents.js` (merchant agents, haggle voice, Ministry relief) |
+| `js/online/` | Browser key, signing, session and the ledger mirror |
+| `judge.html`, `js/judge.js` | The Judge's Desk |
+| `docs/` | `game-loop.md`, `shop-deeds.md`, `agents.md`, `economy-design.md` and the game's design and QA notes |
+| `AGENTS.md` | A guide for AI reviewers and coding agents |
+
+---
+
+## The game
+
 A single-player xianxia deckbuilding RPG. The Ninth Heaven fell, but its collectors still charge the dead for tomorrow. Follow an empty warrant through seven regions and decide what should replace the heavenly ledger.
 
-## Play locally
+### Play locally
 
 On Windows, double-click `Play.cmd` to start the server and open the game. The launcher checks for Node.js in your PATH and in the Codex runtime.
 
-On any platform, run `node server.js` from this directory with Node.js 22 or newer. Open [the local game](http://127.0.0.1:4173) in a browser. The game has no package installation step. Keep the terminal running while you play.
+On any platform, run `npm install` once, then `node server.js` from this directory with Node.js 22 or newer, and open [the local game](http://127.0.0.1:4173) in a browser. Keep the terminal running while you play. Without testnet keys the server runs the game and its practice market offline; the Honest Ledger (sign-in, trades on NEAR) is on the hosted site. Settings are listed in `.env.example`.
 
 Choose **Begin your journey** and swear the oath. **Wayfarer** is the standard campaign. **Tribulation** strengthens enemies and gives phased opponents a protected transition before their next action.
 
 Progress saves automatically in the current browser and includes battles in progress. Use **Settings** to download or load a save file. Browser storage is tied to the exact game address, so use the same host and port when returning.
 
-## The game
+### Features
 
 - Seven campaign chapters, 49 expeditions, 35 opponents, and three endings. Story decisions award different techniques, items, and sect standing.
 - 597 techniques across seven elemental schools and Common Form, including 480 Forbidden Lineages techniques. Twelve card types cover strikes, wards, mantras, remedies, hexes, formations, stances, counters, pacts, rituals, transmutations, and finishers.
@@ -35,6 +117,8 @@ Progress saves automatically in the current browser and includes battles in prog
 - The **Night Bazaar** (Market → Merchants) has nine merchants, each with a purse, stock and temperament. Hover, focus or tap any price to read the merchant's reasons. Selling moves prices, a merchant who runs out of jade closes until players rekindle the shop, and patrons can buy up to 49% of a merchant. The market keeps trading in your browser, one market hour per real minute. **Watch a week of the market** (or open `#market-sim`) plays a labelled simulation of a market week in about a minute. All pricing rules live in `js/market/merchant-rules.js`; the design is in `docs/game-loop.md`.
 
 ## Development and QA
+
+`npm run verify` runs the node suite and the contract tests together. The browser suites below use Playwright and Microsoft Edge; they run the game offline (no ledger, no agents).
 
 Run the regression suite with `node --test`. It covers the combat engine, saves, the expedition dependency graph, choices, item effects, crafting, the market, equipment, learning, and bundled art paths.
 
