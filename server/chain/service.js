@@ -13,7 +13,7 @@ import {MERCHANTS} from '../../js/market/merchant-rules.js';
 import {decryptSecret, encryptSecret} from '../secrets.js';
 
 export const PLAYER_METHODS = ['market_sell', 'market_buy', 'patron_invest', 'listing_create', 'listing_fill', 'listing_cancel',
-  'deed_buy', 'deed_list', 'deed_claim', 'deed_set_strategy', 'deed_appoint_agent'];
+  'deed_buy', 'deed_list', 'deed_claim', 'deed_set_strategy', 'deed_appoint_agent', 'market_haggle', 'market_take_counter', 'job_fill'];
 const DEVICE_ALLOWANCE = BigInt(parseNearAmount('0.25'));
 const ACCOUNT_FUNDING = BigInt(parseNearAmount('0.01'));
 const FLOOR = {parent: BigInt(parseNearAmount('0.3')), relayer: BigInt(parseNearAmount('1'))};
@@ -210,13 +210,19 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     await need();
     if (Date.now() - books.at < 3000 && books.value) return books.value;
     const ids = await view('market_merchants');
-    const [tick, info, listings, deeds] = await Promise.all([view('market_tick'), view('contract_info'), view('listings', {limit: 200}).catch(() => []),
-      view('deeds').catch(() => [])]);
+    const [tick, info, listings, deeds, jobs] = await Promise.all([view('market_tick'), view('contract_info'), view('listings', {limit: 200}).catch(() => []),
+      view('deeds').catch(() => []), view('jobs').catch(() => [])]);
     const merchants = [];
     for (let i = 0; i < ids.length; i += 3) merchants.push(...await Promise.all(ids.slice(i, i + 3).map(id => view('market_merchant', {merchant_id: id}))));
-    books = {at: Date.now(), value: {tick, testimonyBps: info.testimony_bps ?? 0, merchants, listings, deeds}};
+    books = {at: Date.now(), value: {tick, testimonyBps: info.testimony_bps ?? 0, merchants, listings, deeds, jobs}};
     return books.value;
   }
+  /** The player's latest haggle with each merchant (today's counter, if any, is among them). */
+  async function haggles(accountId) {
+    await need();
+    return view('haggles_of', {account_id: accountId}).catch(() => []);
+  }
+
   async function balances(accountId, tokenIds) {
     await need();
     const amounts = await view('mt_batch_balance_of', {account_id: accountId, token_ids: tokenIds});
@@ -259,7 +265,7 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     } catch (error) { return {...base, rpcError: error.message}; }
   }
 
-  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, quote, forgetBooks, report, agentsReady, agentCall,
+  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, haggles, quote, forgetBooks, report, agentsReady, agentCall,
     contract: CONTRACT, parent: PARENT};
 }
 

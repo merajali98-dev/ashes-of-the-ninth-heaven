@@ -21,6 +21,7 @@ pub struct Temperament {
     pub flow_fade_bps: i128,
     pub reversion_bps: i128,
     pub loyalty_bps: i128,
+    pub haggle_bps: i128,
 }
 
 pub struct MerchantDef {
@@ -252,7 +253,7 @@ pub fn quote(def: &MerchantDef, token: &TokenInfo, state: &MarketState, index: O
         q.units.push(unit_price(def, token, state, sell, at(s, f), reputation_bps, tax));
     }
     q.total = q.units.iter().sum();
-    q.tax_paid = if sell { div(q.total * tax, BPS - tax) } else { q.total - div(q.total * BPS, BPS + tax) };
+    q.tax_paid = tax_on(q.total, sell, tax);
     if sell && ((state.cash as i128) - q.total - q.tax_paid) * BPS < def.start_cash * PURSE_STOP_BUYING_BELOW_BPS {
         q.units.clear();
         q.total = 0;
@@ -260,6 +261,70 @@ pub fn quote(def: &MerchantDef, token: &TokenInfo, state: &MarketState, index: O
         return refuse(q, "PURSE_EMPTY");
     }
     q
+}
+
+/// The Paper Taxman's cut inside a total: on a sale the merchant pays it on top; on a purchase it is part of the price.
+pub fn tax_on(total: i128, sell: bool, tax: i128) -> i128 {
+    if sell { div(total * tax, BPS - tax) } else { total - div(total * BPS, BPS + tax) }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Haggle {
+    /// accepted | countered | walked
+    pub outcome: &'static str,
+    pub price: i128,
+    pub bend_bps: i128,
+    pub room: i128,
+}
+
+/// Haggle over a quoted trade (see `haggle` in merchant-rules.js). `posted` is the quote's total, `offer` the player's.
+pub fn haggle(def: &MerchantDef, sell: bool, posted: i128, offer: i128, helps: bool, struggling: bool) -> Haggle {
+    let bend_bps = if sell && struggling { 0 } else { def.temperament.haggle_bps + if helps { HAGGLE_NEED_BPS } else { 0 } };
+    let room = div(posted * bend_bps, BPS);
+    let over = if sell { offer - posted } else { posted - offer };
+    let toward = |n: i128| if sell { posted + n } else { posted - n };
+    let (outcome, price) = if over <= 0 {
+        ("accepted", posted)
+    } else if over <= room {
+        ("accepted", offer)
+    } else if room == 0 || over * BPS <= room * HAGGLE_WALK_AWAY_BPS {
+        ("countered", toward(div(room, 2)))
+    } else {
+        ("walked", 0)
+    };
+    Haggle { outcome, price, bend_bps, room }
+}
+
+/// What a merchant knows when it posts a job for one good.
+pub struct JobBooks {
+    pub stock: i128,
+    pub target: i128,
+    pub bid: i128,
+    pub mid: i128,
+    pub cash: i128,
+    pub open: bool,
+}
+
+/// "OK" or why a job is refused (see `checkJob` in merchant-rules.js).
+pub fn check_job(def: &MerchantDef, b: &JobBooks, units: i128, pay_each: i128) -> &'static str {
+    if !b.open {
+        return "PURSE_TOO_THIN";
+    }
+    let max_units = JOB_MAX_UNITS.min((b.target - b.stock).max(0));
+    if max_units == 0 {
+        return "NOT_SHORT";
+    }
+    if units < 1 || units > max_units {
+        return "BAD_QTY";
+    }
+    if pay_each < b.bid || pay_each > b.bid.max(b.mid) {
+        return "BAD_PAY";
+    }
+    let floor = div(def.start_cash * PURSE_STOP_BUYING_BELOW_BPS, BPS);
+    if units * pay_each > div(b.cash * JOB_MAX_ESCROW_BPS, BPS) || b.cash - units * pay_each < floor {
+        return "TOO_DEAR";
+    }
+    "OK"
 }
 
 /// Apply an accepted quote. The Paper Taxman's cut leaves the merchant's purse too.

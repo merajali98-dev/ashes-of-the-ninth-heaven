@@ -2,7 +2,7 @@
 import * as R from './merchant-rules.js';
 import {MARKET_TOKENS} from './tokens.js';
 import {bestPrices, marketWorld, playerQuote, walletCents} from './local.js';
-import {isActive as onLedger, ledger as ledgerState} from '../online/ledger.js';
+import {haggleToday, isActive as onLedger, ledger as ledgerState} from '../online/ledger.js';
 import {state as sealState} from '../online/session.js';
 import {CAST} from './npc.js';
 import {SHOCKS} from './engine.js';
@@ -44,8 +44,9 @@ export function journalNote(m) {
   if (!entry?.say) return '';
   const changes = (entry.changes ?? []).slice(0, 3).map(c => `${c.to > c.from ? 'wants more' : 'wants less'} ${esc(c.name)}`).join(' · ');
   const record = entry.tx ? ` · <a href="https://testnet.nearblocks.io/txns/${encodeURIComponent(entry.tx)}" target="_blank" rel="noopener">See the record</a>` : ''; // chain-words-ok
+  const hiring = entry.job?.ok ? ` · hiring ${entry.job.units} ${esc(entry.job.name)} at ${R.jade(entry.job.payEach)} each` : '';
   return `<div class="stall-journal"><span class="eyebrow">${esc(m.name)}'s decision today</span><p>“${esc(entry.say)}”</p>
-    <small>${changes || 'No changes'}${entry.source === 'rules' ? ' · decided by the shop rules' : ' · decided in character'}${record}</small></div>`;
+    <small>${changes || 'No changes'}${hiring}${entry.source === 'rules' ? ' · decided by the shop rules' : ' · decided in character'}${record}</small></div>`;
 }
 /** A price with the merchant's reasoning: shown on hover, keyboard focus or tap. */
 export function priceTip(price, lines, label, extra = '') {
@@ -244,7 +245,7 @@ export function quickTrade(game, ui = {}) {
     const manyOk = many > 1 && playerQuote(game, best.merchant, id, 'sell', many).ok;
     return `<li class="quick-row">${tokenIcon(token)}<span class="quick-name"><b>${esc(token.name)}</b><small>You have ${have}</small></span>
       <span class="quick-price"><small>${esc(merchantName(best.merchant))} pays</small>${priceTip(best.bid, best.lines, `${merchantName(best.merchant)} pays`, 'bid')}</span>
-      <span class="quick-actions">${button('Sell 1', 'market-sell', `${best.merchant}|${id}|1`, {className: 'compact'})}${manyOk ? button(`Sell ${many}`, 'market-sell', `${best.merchant}|${id}|${many}`, {className: 'compact quiet'}) : ''}</span></li>`;
+      <span class="quick-actions">${button('Sell 1', 'market-sell', `${best.merchant}|${id}|1`, {className: 'compact'})}${manyOk ? button(`Sell ${many}`, 'market-sell', `${best.merchant}|${id}|${many}`, {className: 'compact quiet'}) : ''}${haggleButton(best.merchant, id, many, 'sell')}</span></li>`;
   }).join('');
 
   const school = R.edictSchool(world.tick);
@@ -253,7 +254,7 @@ export function quickTrade(game, ui = {}) {
     if (!ask && !bid) return '';
     return `<li class="quick-row">${tokenIcon(token)}<span class="quick-name"><b>${esc(token.name)}</b><small>${ask ? `${esc(merchantName(ask.merchant))} sells` : 'Nobody is selling'}</small></span>
       <span class="quick-price">${ask ? priceTip(ask.ask, ask.lines, `${merchantName(ask.merchant)} charges`, 'ask') : ''}</span>
-      <span class="quick-actions">${ask ? button('Buy 1', 'market-buy', `${ask.merchant}|${token.id}|1`, {className: 'compact', disabled: walletCents(game) < ask.ask}) : ''}</span></li>`;
+      <span class="quick-actions">${ask ? button('Buy 1', 'market-buy', `${ask.merchant}|${token.id}|1`, {className: 'compact', disabled: walletCents(game) < ask.ask}) + haggleButton(ask.merchant, token.id, 1, 'buy') : ''}</span></li>`;
   }).join('');
 
   const ids = Object.keys(world.merchants);
@@ -264,7 +265,7 @@ export function quickTrade(game, ui = {}) {
     : struggling ? `${merchantName(struggling)} is short of jade and pays less than usual. Buying there helps the shop recover.`
     : `${merchantName(spotlight)} has the fullest purse in the bazaar today and can afford to pay for good goods.`;
 
-  return `<div class="quick-trade">
+  return `<div class="quick-trade">${hiringPanel(game)}
     <section class="quick-panel quick-sell"><h2>Sell what you carry</h2>
       ${sellRows ? `<ul class="quick-list">${sellRows}</ul><p class="microcopy">Each price is the best offer in the bazaar right now. Hover or tap a price to hear why.</p>`
         : '<p class="microcopy">You carry nothing the merchants buy yet. Commissions in the Expeditions bring back essences and seals to sell.</p>'}</section>
@@ -350,4 +351,68 @@ export function shopDeeds(game, ui = {}) {
       <a class="microcopy" href="https://testnet.nearblocks.io/nft-token/${encodeURIComponent(ledgerState.contract ?? '')}/${encodeURIComponent(d.token_id)}" target="_blank" rel="noopener">Its history on the record</a></div></article>`; // chain-words-ok
   }).join('');
   return `<section class="quick-panel deeds-panel"><h2>Shop deeds</h2>${intro}<div class="deed-grid">${cards || '<p class="microcopy">No deeds yet.</p>'}</div></section>`;
+}
+
+// ------------------------------------------------------------------ haggling and merchants hiring (on the ledger)
+
+function haggleButton(merchantId, tokenId, qty, side) {
+  if (!onLedger()) return '';
+  return button('Haggle', 'haggle-open', `${merchantId}|${tokenId}|${qty}|${side}`, {className: 'compact quiet'});
+}
+
+/** Jobs merchants have posted: deliver the goods and take wages held in escrow on the Honest Ledger. */
+export function hiringPanel(game) {
+  if (!onLedger()) return '';
+  const world = marketWorld(game);
+  const open = (ledgerState.jobs ?? []).filter(j => !j.expired && world.tokens[j.token_id]);
+  if (!open.length) return '';
+  const rows = open.slice(0, 4).map(j => {
+    const token = world.tokens[j.token_id], have = owned(game, j.token_id), n = Math.min(have, Number(j.wanted));
+    const hours = Math.max(1, j.expires_tick - (ledgerState.books?.tick ?? 0));
+    const best = bestPrices(game, j.token_id).bid;
+    const better = best ? ` · others pay ${R.jade(best.bid)}` : '';
+    return `<li class="quick-row">${tokenIcon(token)}<span class="quick-name"><b>${esc(j.name)} wants ${esc(j.wanted)} ${esc(token.name)}</b>
+      <small>You have ${have} · ${hours} market ${hours === 1 ? 'hour' : 'hours'} left${better}</small></span>
+      <span class="quick-price"><small>Pays each</small><b>${R.jade(Number(j.pay_each))}</b></span>
+      <span class="quick-actions">${n > 0 ? button(`Deliver ${n}`, 'job-fill', `${j.merchant_id}|${n}`, {className: 'compact'}) : '<small>Commissions bring these back</small>'}</span></li>`;
+  }).join('');
+  return `<section class="quick-panel quick-jobs"><h2>Merchants hiring</h2><ul class="quick-list">${rows}</ul>
+    <p class="microcopy">A merchant short of a good posts a job and its agent sets the pay: above what it usually pays you, never above its own valuation. The wages are held in escrow on the Honest Ledger until you deliver.</p></section>`;
+}
+
+/** The haggle dialog: the posted price, your offer, and the merchant's answer with its reasons. */
+export function haggleDialog(game, {merchantId, tokenId, side, qty, busy = false, result = null}) {
+  const world = marketWorld(game), m = world.merchants[merchantId], token = world.tokens[tokenId];
+  if (!m || !token) return {title: 'Haggle', body: '<p>That merchant is not at the bazaar.</p>'};
+  const q = playerQuote(game, merchantId, tokenId, side, qty);
+  const posted = q.ok ? q.total : 0, today = haggleToday(merchantId);
+  const verb = side === 'sell' ? `sell ${qty} ${token.name} to` : `buy ${qty} ${token.name} from`;
+  const head = `<div class="haggle-head">${picture(portrait(merchantId), 'merchant-face')}<div><b>${esc(m.name)}</b>
+    <small>${esc(TEMPERAMENT[m.temperament] ?? '')}</small><p>You want to ${esc(verb)} ${esc(m.name)}. Posted price: <b>${R.jade(posted)} jade</b>${side === 'sell' ? ' for you' : ''}.</p></div></div>`;
+  const record = tx => tx ? `<a class="microcopy" href="https://testnet.nearblocks.io/txns/${encodeURIComponent(tx)}" target="_blank" rel="noopener">See the record</a>` : ''; // chain-words-ok
+  let body;
+  if (result) {
+    const said = result.say || result.lines?.[0] || '';
+    const why = (result.lines ?? []).slice(1).map(line => `<li>${esc(line)}</li>`).join('');
+    const after = result.outcome === 'countered'
+      ? `<div class="quick-actions">${button(`Take ${R.jade(result.price)} jade`, 'haggle-take', merchantId, {className: 'primary'})}${button('Walk away', 'close', '', {className: 'quiet'})}</div>`
+      : result.outcome === 'accepted' ? `<p class="haggle-done">Done: ${side === 'sell' ? 'you received' : 'you paid'} <b>${R.jade(result.price)} jade</b>.</p>`
+      : '<p class="microcopy">No more haggling with this merchant until the next market day. The posted prices still stand.</p>';
+    body = `${head}<blockquote class="haggle-say">“${esc(said)}”<small>${result.voice === 'rules' ? 'from the shop rules' : `${esc(m.name)}, in character`}</small></blockquote>
+      ${why ? `<details class="haggle-why"><summary>Why?</summary><ul>${why}</ul></details>` : ''}${after}${record(result.record)}`;
+  } else if (today && today.outcome === 'countered') {
+    body = `${head}<p>${esc(m.name)} offered you <b>${R.jade(Number(today.price))} jade</b> for ${esc(today.amount)} ${esc(world.tokens[today.token_id]?.name ?? today.token_id)} today.</p>
+      <div class="quick-actions">${button(`Take ${R.jade(Number(today.price))} jade`, 'haggle-take', merchantId, {className: 'primary'})}${button('Walk away', 'close', '', {className: 'quiet'})}</div>`;
+  } else if (today) {
+    body = `${head}<p class="microcopy">You have already haggled with ${esc(m.name)} today. The posted prices still stand; come back next market day to haggle again.</p>`;
+  } else if (!q.ok) {
+    body = `${head}<p>${esc(q.reason)}</p>`;
+  } else {
+    const hint = side === 'sell' ? Math.round(posted * 1.03) : Math.round(posted * 0.97);
+    body = `${head}<form data-form="haggle" data-id="${esc(`${merchantId}|${tokenId}|${qty}|${side}`)}" class="haggle-form">
+      <label>Your price, in jade <input name="offer" type="number" min="0.01" step="0.01" value="${R.jade(hint)}" required autofocus></label>
+      <button type="submit" class="btn primary" ${busy ? 'disabled' : ''}>${busy ? `${esc(m.name)} weighs your offer…` : 'Make the offer'}</button></form>
+      <p class="microcopy">${esc(m.name)} gives a little way, more when you bring what the shop lacks or take what it has too much of. Ask a little more and you may get a counter; ask far too much and ${esc(m.name)} walks away until the next market day. One haggle per merchant per day. The rules are in the shop's rules file; the ledger decides.</p>`;
+  }
+  return {title: `Haggle with ${m.name}`, subtitle: 'THE NIGHT BAZAAR', body: `<div class="haggle">${body}</div>`};
 }

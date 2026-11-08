@@ -48,32 +48,37 @@ pub const PATRON_MAX_PATRONS: usize = 10;
 pub const DEED_OWNER_SHARE_BPS: i128 = 1000;
 pub const DEED_PRICE: u128 = 10000;
 pub const DEED_MAX_PER_ACCOUNT: usize = 3;
+pub const HAGGLE_NEED_BPS: i128 = 300;
+pub const HAGGLE_WALK_AWAY_BPS: i128 = 20000;
+pub const JOB_MAX_UNITS: i128 = 20;
+pub const JOB_MAX_ESCROW_BPS: i128 = 1000;
+pub const JOB_TTL_TICKS: u64 = 24;
 pub const MERCHANTS: [MerchantDef; 9] = [
     MerchantDef { id: "granny-qiu", name: "Granny Qiu", start_cash: 400000, consumables: false,
-        temperament: Temperament { k_quarters: 3, spread_bps: 2500, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000 },
+        temperament: Temperament { k_quarters: 3, spread_bps: 2500, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000, haggle_bps: 300 },
         families: &[("seal-jade", Role::Side), ("essence-iron", Role::Side), ("essence-ember", Role::Side), ("essence-tide", Role::Side), ("essence-shade", Role::Side), ("essence-lotus", Role::Side), ("essence-thunder", Role::Side), ("essence-star", Role::Side), ("essence-neutral", Role::Side)] },
     MerchantDef { id: "auntie-shi", name: "Auntie Shi", start_cash: 300000, consumables: true,
-        temperament: Temperament { k_quarters: 2, spread_bps: 1500, flow_weight_bps: 1000, flow_fade_bps: 600, reversion_bps: 200, loyalty_bps: 0 },
+        temperament: Temperament { k_quarters: 2, spread_bps: 1500, flow_weight_bps: 1000, flow_fade_bps: 600, reversion_bps: 200, loyalty_bps: 0, haggle_bps: 400 },
         families: &[("essence-neutral", Role::Side)] },
     MerchantDef { id: "mu-xiao", name: "Mu Xiao", start_cash: 250000, consumables: false,
-        temperament: Temperament { k_quarters: 3, spread_bps: 1000, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000 },
+        temperament: Temperament { k_quarters: 3, spread_bps: 1000, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000, haggle_bps: 300 },
         families: &[("essence-iron", Role::Specialty), ("seal-jade", Role::Side)] },
     MerchantDef { id: "lu-yan", name: "Lu Yan", start_cash: 250000, consumables: false,
-        temperament: Temperament { k_quarters: 4, spread_bps: 800, flow_weight_bps: 3500, flow_fade_bps: 1200, reversion_bps: 400, loyalty_bps: 0 },
+        temperament: Temperament { k_quarters: 4, spread_bps: 800, flow_weight_bps: 3500, flow_fade_bps: 1200, reversion_bps: 400, loyalty_bps: 0, haggle_bps: 200 },
         families: &[("essence-ember", Role::Specialty), ("essence-neutral", Role::Side)] },
     MerchantDef { id: "elder-ya", name: "Elder Ya", start_cash: 250000, consumables: false,
-        temperament: Temperament { k_quarters: 2, spread_bps: 1500, flow_weight_bps: 1000, flow_fade_bps: 600, reversion_bps: 200, loyalty_bps: 0 },
+        temperament: Temperament { k_quarters: 2, spread_bps: 1500, flow_weight_bps: 1000, flow_fade_bps: 600, reversion_bps: 200, loyalty_bps: 0, haggle_bps: 400 },
         families: &[("essence-tide", Role::Specialty), ("seal-jade", Role::Specialty)] },
     MerchantDef { id: "black-bamboo", name: "Black Bamboo", start_cash: 250000, consumables: false,
-        temperament: Temperament { k_quarters: 4, spread_bps: 800, flow_weight_bps: 3500, flow_fade_bps: 1200, reversion_bps: 400, loyalty_bps: 0 },
+        temperament: Temperament { k_quarters: 4, spread_bps: 800, flow_weight_bps: 3500, flow_fade_bps: 1200, reversion_bps: 400, loyalty_bps: 0, haggle_bps: 200 },
         families: &[("essence-shade", Role::Specialty), ("essence-neutral", Role::Side)] },
     MerchantDef { id: "kuang-yi", name: "Kuang Yi", start_cash: 250000, consumables: false,
-        temperament: Temperament { k_quarters: 3, spread_bps: 1000, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000 },
+        temperament: Temperament { k_quarters: 3, spread_bps: 1000, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000, haggle_bps: 300 },
         families: &[("essence-lotus", Role::Specialty), ("seal-jade", Role::Side)] },
     MerchantDef { id: "he-feng", name: "He Feng", start_cash: 250000, consumables: false,
-        temperament: Temperament { k_quarters: 4, spread_bps: 800, flow_weight_bps: 3500, flow_fade_bps: 1200, reversion_bps: 400, loyalty_bps: 0 },
+        temperament: Temperament { k_quarters: 4, spread_bps: 800, flow_weight_bps: 3500, flow_fade_bps: 1200, reversion_bps: 400, loyalty_bps: 0, haggle_bps: 200 },
         families: &[("essence-thunder", Role::Specialty), ("seal-jade", Role::Side)] },
     MerchantDef { id: "gao-shan", name: "Gao Shan", start_cash: 250000, consumables: false,
-        temperament: Temperament { k_quarters: 2, spread_bps: 1500, flow_weight_bps: 1000, flow_fade_bps: 600, reversion_bps: 200, loyalty_bps: 0 },
+        temperament: Temperament { k_quarters: 2, spread_bps: 1500, flow_weight_bps: 1000, flow_fade_bps: 600, reversion_bps: 200, loyalty_bps: 0, haggle_bps: 400 },
         families: &[("essence-star", Role::Specialty), ("seal-jade", Role::Side)] },
 ];

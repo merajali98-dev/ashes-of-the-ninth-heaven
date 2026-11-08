@@ -53,6 +53,8 @@ code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px
       <div class="actions">
         <button data-act="sell" disabled>Sell 1 Mortal Cinder Essence to Lu Yan</button>
         <button data-act="buy" disabled>Buy 1 Mortal Cinder Essence from Lu Yan</button>
+        <button data-act="haggle" disabled>Haggle with Lu Yan: ask a little too much, then take her counter</button>
+        <button data-act="job" disabled>Deliver goods to a merchant's paid job (if one wants what you hold)</button>
         <button data-act="invest" disabled>Become a patron of Lu Yan (1 jade)</button>
         <button data-act="deed" disabled>Buy a Shop Deed (an NEP-171 NFT) and put it back up for sale</button>
         <button data-act="forbidden" disabled>Try a forbidden move: send jade with the trade key</button>
@@ -74,6 +76,16 @@ code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px
       <ul class="log" id="journal"><li class="muted">Loading…</li></ul>
     </section>
     <section>
+      <h2>Merchants hiring</h2>
+      <p class="muted">A merchant short of a good posts one paid job from its own account (<code>merchant_post_job</code>, the same limited agent key). The contract checks the terms against the rules file (pay between its bid and its own valuation, at most 10% of its purse) and holds the wages in escrow until a player delivers or a market day passes.</p>
+      <ul class="log" id="jobs"><li class="muted">Loading…</li></ul>
+    </section>
+    <section>
+      <h2>Haggles</h2>
+      <p class="muted">The contract decides every haggle with <code>haggle()</code> from the rules file: accept, one counter, or walk away. NEAR AI only voices the answer, and its line is used only if it states the decided price exactly.</p>
+      <ul class="log" id="haggles"><li class="muted">Loading…</li></ul>
+    </section>
+    <section>
       <h2>Fast-forward a week</h2>
       <p class="muted">The same rules and engine, played by simulated traders for 7 days in a minute. Nothing is sent to the chain; it is labelled as a simulation.</p>
       <div class="actions"><button onclick="location.href='/#market-sim'">Open the fast-forward week</button></div>
@@ -90,6 +102,7 @@ code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px
         <tr><td>One pricing file</td><td><code>js/market/merchant-rules.js</code>: the tooltip, the fast-forward and (generated into Rust) the contract all use it; <code>tests/parity.rs</code> replays 3,218 steps exactly.</td></tr>
         <tr><td>Fast-forward</td><td><a href="/#market-sim">/#market-sim</a>: a week of trading in a minute, with flood and audit scenarios.</td></tr>
         <tr><td>NFTs that are shops</td><td>Shop Deeds (NEP-171): the holder takes 10% of each profitable day into the deed's vault and runs the shop or appoints its agent; the vault moves with the deed. <code>docs/shop-deeds.md</code></td></tr>
+        <tr><td>AI agents that trade</td><td>Each merchant is an account with an agent key limited to two methods: it sets its strategy daily and hires players for its shortages, in character through NEAR AI, within limits the contract enforces. Players haggle; the rules decide and the agent speaks. <code>docs/agents.md</code></td></tr>
         <tr><td>Game loop on paper</td><td><code>docs/game-loop.md</code>: the 30-second, 5-minute and session loops.</td></tr>
       </tbody></table>
     </section>

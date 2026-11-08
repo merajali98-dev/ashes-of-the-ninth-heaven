@@ -5,6 +5,11 @@
 import {existsSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 
+// The suites play the game offline: no ledger, no merchant agents, nothing written to the store on disk.
+process.env.ASHES_CHAIN ??= 'off';
+process.env.ASHES_AGENTS ??= 'off';
+process.env.ASHES_STORE ??= 'memory';
+
 const source = process.env.PLAYWRIGHT_MODULE;
 const spec = source ? (source.startsWith('file:') ? source : pathToFileURL(source).href) : 'playwright';
 const mod = await import(spec).catch(() => null);

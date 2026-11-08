@@ -7,6 +7,8 @@
 //!   current market hour (upkeep, caravans, learning, closure and patron dividends).
 //! * Players trade through deposit-free `market_*` methods, so a key limited to this contract can sign them and a
 //!   relayer can pay the gas. Standard `mt_transfer*` methods require 1 yoctoNEAR, as NEP-245 specifies.
+//! * Haggling: a player names a price; the merchant accepts, counters once or walks away, by the rules file's formula.
+//! * Jobs: a merchant's agent posts paid work for goods its shop lacks, the pay held here in escrow until delivered.
 //! * The game's minter account mints commission rewards and burns forging inputs in sequence-numbered batches, so a
 //!   retried batch can never apply twice.
 use near_sdk::json_types::U128;
@@ -21,7 +23,8 @@ pub mod pricing;
 pub mod rules_gen;
 
 use pricing::{MarketState, Status, TokenInfo};
-use rules_gen::{BPS, DEED_MAX_PER_ACCOUNT, DEED_OWNER_SHARE_BPS, DEED_PRICE, MAX_CATCH_UP_TICKS, PATRON_MAX_PATRONS, PATRON_MAX_PUBLIC_BPS, TICKS_PER_DAY};
+use rules_gen::{BPS, DEED_MAX_PER_ACCOUNT, DEED_OWNER_SHARE_BPS, DEED_PRICE, JOB_TTL_TICKS, MAX_CATCH_UP_TICKS, PATRON_MAX_PATRONS, PATRON_MAX_PUBLIC_BPS,
+    PURSE_STOP_BUYING_BELOW_BPS, TICKS_PER_DAY};
 
 pub const JADE: &str = "jade";
 const JADE_INDEX: u32 = 0;
@@ -44,6 +47,68 @@ enum Key {
     ListingCounts,
     // Added with Shop Deeds (NEP-171), opened on demand like the listings.
     Deeds,
+    // Added with haggling and merchants' jobs, opened on demand like the listings.
+    Haggles,
+    Jobs,
+}
+
+/// A player's haggle with one merchant on one market day.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct Haggle {
+    pub merchant_id: AccountId,
+    pub day: u64,
+    pub token_id: String,
+    pub amount: U128,
+    pub sell: bool,
+    /// The merchant's posted total when the player made the offer.
+    pub posted: U128,
+    pub offer: U128,
+    /// accepted | countered | walked | taken (a counter the player accepted)
+    pub outcome: String,
+    /// The deal's total, or the counter.
+    pub price: U128,
+    pub bend_bps: u32,
+}
+
+#[near(serializers = [json])]
+pub struct HaggleReceipt {
+    pub outcome: String,
+    pub merchant_id: AccountId,
+    pub token_id: String,
+    pub amount: U128,
+    pub sell: bool,
+    pub posted: U128,
+    pub offer: U128,
+    pub price: U128,
+    pub tax: U128,
+    pub bend_bps: u32,
+    pub helps: bool,
+    pub tick: u64,
+}
+
+/// Paid work a merchant posts for a good it lacks. `escrow` is the unpaid wage, held by this contract.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct Job {
+    pub merchant_id: AccountId,
+    pub rules_id: String,
+    pub token_id: String,
+    pub wanted: U128,
+    pub pay_each: U128,
+    pub escrow: U128,
+    pub posted_tick: u64,
+    pub expires_tick: u64,
+}
+
+#[near(serializers = [json])]
+pub struct JobReceipt {
+    pub merchant_id: AccountId,
+    pub token_id: String,
+    pub amount: U128,
+    pub paid: U128,
+    pub tax: U128,
+    pub left: U128,
 }
 
 const ALL_DEEDS: &[u8] = b"deeds:all";
@@ -437,6 +502,165 @@ impl Contract {
         emit("ashes", "1.0.0", "merchant_strategy", json!({"merchant_id": merchant_id, "day": day, "specialty": m.state.specialty,
             "targets": goods.iter().zip(m.state.target.iter()).map(|(t, v)| json!([t.id, v])).collect::<Vec<_>>()}));
         self.merchants.insert(merchant_id, m);
+    }
+
+    // ------------------------------------------------------------------ haggling (deposit-free)
+
+    /// Name your own total for a trade. By `haggle` in the rules file, the merchant accepts it (the trade happens now),
+    /// counters once (take it with `market_take_counter` the same market day) or walks away. One haggle per merchant
+    /// per market day.
+    pub fn market_haggle(&mut self, merchant_id: AccountId, token_id: String, amount: U128, sell: bool, offer: U128) -> HaggleReceipt {
+        require!(!self.paused, "PAUSED");
+        let player = env::predecessor_account_id();
+        require!(player != merchant_id && !self.merchants.contains_key(&player), "merchants trade through their agents");
+        require!(offer.0 > 0 && offer.0 < 1_000_000_000_000, "BAD_OFFER");
+        let tick = self.current_tick();
+        let day = tick / TICKS_PER_DAY;
+        let key = (player.clone(), merchant_id.clone());
+        if Self::haggle_store().get(&key).map_or(false, |h| h.day == day) {
+            fail("HAGGLED_TODAY");
+        }
+        let mut m = self.caught_up(&merchant_id);
+        let (q, index, helps) = self.quote_for(&player, &merchant_id, &m, &token_id, amount, sell);
+        let struggling = pricing::merchant_status(m.def(), &m.state) == Status::Struggling;
+        let h = pricing::haggle(m.def(), sell, q.total, offer.0 as i128, helps, struggling);
+        let tax = if h.outcome == "accepted" {
+            self.settle(&player, &merchant_id, &mut m, index, &token_id, amount, sell, h.price as u128, "market_haggle")
+        } else {
+            0
+        };
+        self.merchants.insert(merchant_id.clone(), m);
+        let record = Haggle { merchant_id: merchant_id.clone(), day, token_id: token_id.clone(), amount, sell, posted: U128(q.total as u128), offer,
+            outcome: h.outcome.into(), price: U128(h.price as u128), bend_bps: h.bend_bps as u32 };
+        Self::haggle_store().insert(key, record);
+        emit("ashes", "1.0.0", "haggle", json!({"account_id": player, "merchant_id": merchant_id, "token_id": token_id, "amount": amount,
+            "side": if sell { "sell" } else { "buy" }, "posted": U128(q.total as u128), "offer": offer, "outcome": h.outcome, "price": U128(h.price as u128),
+            "bend_bps": h.bend_bps}));
+        HaggleReceipt { outcome: h.outcome.into(), merchant_id, token_id, amount, sell, posted: U128(q.total as u128), offer,
+            price: U128(h.price as u128), tax: U128(tax), bend_bps: h.bend_bps as u32, helps, tick }
+    }
+
+    /// Accept the merchant's counter, the same market day. It stands while the merchant would still accept it now; if
+    /// the posted price has since moved past it in the player's favour, the posted price is used.
+    pub fn market_take_counter(&mut self, merchant_id: AccountId) -> MarketReceipt {
+        require!(!self.paused, "PAUSED");
+        let player = env::predecessor_account_id();
+        let key = (player.clone(), merchant_id.clone());
+        let mut h = Self::haggle_store().get(&key).cloned().unwrap_or_else(|| fail("NO_COUNTER"));
+        let tick = self.current_tick();
+        require!(h.day == tick / TICKS_PER_DAY && h.outcome == "countered", "NO_COUNTER");
+        let mut m = self.caught_up(&merchant_id);
+        let (q, index, helps) = self.quote_for(&player, &merchant_id, &m, &h.token_id, h.amount, h.sell);
+        let struggling = pricing::merchant_status(m.def(), &m.state) == Status::Struggling;
+        let check = pricing::haggle(m.def(), h.sell, q.total, h.price.0 as i128, helps, struggling);
+        if check.outcome != "accepted" {
+            fail("PRICE_MOVED");
+        }
+        let total = check.price as u128;
+        let tax = self.settle(&player, &merchant_id, &mut m, index, &h.token_id.clone(), h.amount, h.sell, total, "market_haggle");
+        self.merchants.insert(merchant_id.clone(), m);
+        h.outcome = "taken".into();
+        h.price = U128(total);
+        let token_id = h.token_id.clone();
+        let amount = h.amount;
+        Self::haggle_store().insert(key, h);
+        emit("ashes", "1.0.0", "haggle", json!({"account_id": player, "merchant_id": merchant_id, "token_id": token_id, "outcome": "taken", "price": U128(total)}));
+        MarketReceipt { merchant_id, token_id, amount, total: U128(total), tax: U128(tax), tick }
+    }
+
+    /// The player's haggles today and earlier, one per merchant (the latest).
+    pub fn haggles_of(&self, account_id: AccountId) -> Vec<Haggle> {
+        let store = Self::haggle_store();
+        self.merchants.keys().filter_map(|mid| store.get(&(account_id.clone(), mid.clone())).cloned()).collect()
+    }
+
+    // ------------------------------------------------------------------ merchants hire players
+
+    /// A merchant's agent posts paid work for a good its shop is short of (see `checkJob` in the rules file). The whole
+    /// wage leaves the purse into escrow here; whatever is not earned within JOBS.ttlTicks market hours comes back.
+    pub fn merchant_post_job(&mut self, token_id: String, amount: U128, pay_each: U128) -> Value {
+        require!(!self.paused, "PAUSED");
+        let merchant_id = env::predecessor_account_id();
+        require!(self.merchants.contains_key(&merchant_id), "only a merchant posts jobs");
+        let mut m = self.caught_up(&merchant_id);
+        if let Some(d) = self.deed_for(&m.rules_id) {
+            require!(d.owner == self.ministry_id || d.agent, "DEED_HOLDER_DECIDES");
+        }
+        if Self::job_store().get(&merchant_id).is_some() {
+            fail("JOB_OPEN");
+        }
+        let index = self.index_of(&token_id);
+        let p = m.position(index).unwrap_or_else(|| fail("NOT_TRADED"));
+        let tick = self.current_tick();
+        let q = pricing::quote(m.def(), &m.goods_info[p], &m.state, Some(p), true, 1, tick, 0, self.testimony_bps as i128);
+        let books = pricing::JobBooks { stock: m.state.stock[p] as i128, target: m.state.target[p] as i128, bid: q.bid, mid: q.mid,
+            cash: m.state.cash as i128, open: pricing::merchant_status(m.def(), &m.state) == Status::Open };
+        let code = pricing::check_job(m.def(), &books, amount.0 as i128, pay_each.0 as i128);
+        if code != "OK" {
+            fail(code);
+        }
+        let escrow = amount.0 * pay_each.0;
+        m.state.cash -= escrow as i64;
+        self.escrow_add(escrow as i128);
+        let job = Job { merchant_id: merchant_id.clone(), rules_id: m.rules_id.clone(), token_id: token_id.clone(), wanted: amount, pay_each,
+            escrow: U128(escrow), posted_tick: tick, expires_tick: tick + JOB_TTL_TICKS };
+        self.merchants.insert(merchant_id.clone(), m);
+        Self::job_store().insert(merchant_id.clone(), job.clone());
+        emit_mt("mt_transfer", json!({"old_owner_id": merchant_id, "new_owner_id": env::current_account_id(), "token_ids": [JADE],
+            "amounts": [U128(escrow)], "memo": "job wages in escrow"}));
+        emit("ashes", "1.0.0", "job_posted", json!({"merchant_id": merchant_id, "token_id": token_id, "wanted": amount, "pay_each": pay_each}));
+        self.job_view(&job)
+    }
+
+    /// Deliver goods to a merchant's job and take the wage (less the Ministry's tax), straight from escrow.
+    pub fn job_fill(&mut self, merchant_id: AccountId, amount: U128) -> JobReceipt {
+        require!(!self.paused, "PAUSED");
+        let player = env::predecessor_account_id();
+        require!(player != merchant_id && !self.merchants.contains_key(&player), "merchants do not take jobs");
+        let job = Self::job_store().get(&merchant_id).cloned().unwrap_or_else(|| fail("NO_JOB"));
+        require!(self.current_tick() < job.expires_tick, "JOB_EXPIRED");
+        require!(amount.0 >= 1 && amount.0 <= job.wanted.0, "BAD_QTY");
+        let mut m = self.caught_up(&merchant_id);
+        let index = self.index_of(&job.token_id);
+        let p = m.position(index).unwrap();
+        let have = self.balance(&player, index);
+        require!(have >= amount.0, "NOT_HELD");
+        self.set_balance(&player, index, have - amount.0);
+        m.state.stock[p] += amount.0 as i64;
+        let pay = job.pay_each.0 * amount.0;
+        let tax = (pay as i128 * pricing::tax_bps(self.testimony_bps as i128) / BPS) as u128;
+        self.escrow_add(-(pay as i128));
+        let jade = self.balance(&player, JADE_INDEX);
+        self.set_balance(&player, JADE_INDEX, jade + pay - tax);
+        if tax > 0 {
+            let ministry = self.ministry_id.clone();
+            let have = self.balance(&ministry, JADE_INDEX);
+            self.set_balance(&ministry, JADE_INDEX, have + tax);
+        }
+        let key = (player.clone(), merchant_id.clone());
+        let volume = *self.volume.get(&key).unwrap_or(&0);
+        self.volume.insert(key, volume + pay);
+        let left = job.wanted.0 - amount.0;
+        if left == 0 {
+            Self::job_store().remove(&merchant_id);
+        } else {
+            Self::job_store().insert(merchant_id.clone(), Job { wanted: U128(left), escrow: U128(job.escrow.0 - pay), ..job.clone() });
+        }
+        self.merchants.insert(merchant_id.clone(), m);
+        let escrow = env::current_account_id();
+        emit_mt("mt_transfer", json!({"old_owner_id": player, "new_owner_id": merchant_id, "token_ids": [job.token_id], "amounts": [amount], "memo": "job delivered"}));
+        emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": player, "token_ids": [JADE], "amounts": [U128(pay - tax)], "memo": "job wages"}));
+        if tax > 0 {
+            emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": self.ministry_id, "token_ids": [JADE], "amounts": [U128(tax)], "memo": "ministry tax"}));
+        }
+        emit("ashes", "1.0.0", "job_filled", json!({"merchant_id": merchant_id, "account_id": player, "token_id": job.token_id, "amount": amount, "paid": U128(pay)}));
+        JobReceipt { merchant_id, token_id: job.token_id, amount, paid: U128(pay - tax), tax: U128(tax), left: U128(left) }
+    }
+
+    /// Every merchant's open job (expired ones show `expired: true` until the shop next moves and takes its wage back).
+    pub fn jobs(&self) -> Vec<Value> {
+        let store = Self::job_store();
+        self.merchants.keys().filter_map(|mid| store.get(mid).map(|j| self.job_view(j))).collect()
     }
 
     // ------------------------------------------------------------------ Shop Deeds (NEP-171)
@@ -1117,7 +1341,7 @@ impl Contract {
 
     /// Catch a merchant up for real: write supply, pay patrons and emit the events.
     fn caught_up(&mut self, merchant_id: &AccountId) -> Merchant {
-        let (m, out) = self.simulated(merchant_id);
+        let (mut m, out) = self.simulated(merchant_id);
         let (mut minted, mut minted_n, mut burned, mut burned_n) = (vec![], vec![], vec![], vec![]);
         let mut book = |id: &str, delta: i64| {
             if delta > 0 {
@@ -1160,6 +1384,21 @@ impl Contract {
             self.set_balance(patron, JADE_INDEX, have + *cut as u128);
             emit_mt("mt_transfer", json!({"old_owner_id": merchant_id, "new_owner_id": patron, "token_ids": [JADE], "amounts": [cut.to_string()], "memo": "dividend"}));
         }
+        let mut jobs = Self::job_store();
+        if let Some(job) = jobs.get(merchant_id).cloned() {
+            if self.current_tick() >= job.expires_tick {
+                jobs.remove(merchant_id);
+                drop(jobs);
+                // Unpaid wages return to the purse as capital, not as the day's profit.
+                let back = job.escrow.0 as i64;
+                self.escrow_add(-(back as i128));
+                m.state.cash += back;
+                m.capital_in += back;
+                emit_mt("mt_transfer", json!({"old_owner_id": env::current_account_id(), "new_owner_id": merchant_id, "token_ids": [JADE],
+                    "amounts": [job.escrow], "memo": "job expired"}));
+                emit("ashes", "1.0.0", "job_expired", json!({"merchant_id": merchant_id, "token_id": job.token_id, "unfilled": job.wanted}));
+            }
+        }
         m
     }
 
@@ -1177,10 +1416,24 @@ impl Contract {
         if !q.ok() {
             fail(q.code);
         }
-        let (total, tax) = (q.total as u128, q.tax_paid as u128);
+        let total = q.total as u128;
         if (sell && total < limit) || (!sell && total > limit) {
             fail("PRICE_MOVED");
         }
+        let tax = self.settle(&player, &merchant_id, &mut m, index, &token_id, amount, sell, total, if sell { "market_sell" } else { "market_buy" });
+        self.merchants.insert(merchant_id.clone(), m);
+        MarketReceipt { merchant_id, token_id, amount, total: U128(total), tax: U128(tax), tick }
+    }
+
+    /// Moves the goods and the jade of a trade at `total` (the quote's, or a haggled one) and books it. Returns the tax.
+    #[allow(clippy::too_many_arguments)]
+    fn settle(&mut self, player: &AccountId, merchant_id: &AccountId, m: &mut Merchant, index: u32, token_id: &str, amount: U128, sell: bool,
+        total: u128, memo: &str) -> u128 {
+        let tax = pricing::tax_on(total as i128, sell, pricing::tax_bps(self.testimony_bps as i128)) as u128;
+        if sell && ((m.state.cash as i128) - total as i128 - tax as i128) * BPS < m.def().start_cash * PURSE_STOP_BUYING_BELOW_BPS {
+            fail("PURSE_EMPTY");
+        }
+        let player = player.clone();
         let p = m.position(index).unwrap();
         if sell {
             let have = self.balance(&player, index);
@@ -1195,7 +1448,7 @@ impl Contract {
             let have = self.balance(&player, index);
             self.set_balance(&player, index, have + amount.0);
         }
-        pricing::apply_quote(&mut m.state, p, sell, amount.0 as i128, q.total, q.tax_paid);
+        pricing::apply_quote(&mut m.state, p, sell, amount.0 as i128, total as i128, tax as i128);
         if tax > 0 {
             let ministry = self.ministry_id.clone();
             let have = self.balance(&ministry, JADE_INDEX);
@@ -1204,16 +1457,49 @@ impl Contract {
         let key = (player.clone(), merchant_id.clone());
         let volume = *self.volume.get(&key).unwrap_or(&0);
         self.volume.insert(key, volume + total);
-        let memo = if sell { "market_sell" } else { "market_buy" };
-        let (from, to) = if sell { (&player, &merchant_id) } else { (&merchant_id, &player) };
+        let (from, to) = if sell { (&player, merchant_id) } else { (merchant_id, &player) };
         emit_mt("mt_transfer", json!({"old_owner_id": from, "new_owner_id": to, "token_ids": [token_id], "amounts": [amount], "memo": memo}));
         emit_mt("mt_transfer", json!({"old_owner_id": to, "new_owner_id": from, "token_ids": [JADE], "amounts": [U128(if sell { total } else { total - tax })], "memo": memo}));
         if tax > 0 {
             let payer = if sell { &merchant_id } else { &player };
             emit_mt("mt_transfer", json!({"old_owner_id": payer, "new_owner_id": self.ministry_id, "token_ids": [JADE], "amounts": [U128(tax)], "memo": "ministry tax"}));
         }
-        self.merchants.insert(merchant_id.clone(), m);
-        MarketReceipt { merchant_id, token_id, amount, total: U128(total), tax: U128(tax), tick }
+        tax
+    }
+
+    /// The quote for a player's trade, the good's registry index, and whether the deal fixes the merchant's shortage
+    /// (the player sells what it lacks) or glut (the player buys what it holds too much of).
+    fn quote_for(&self, player: &AccountId, merchant_id: &AccountId, m: &Merchant, token_id: &str, amount: U128, sell: bool) -> (pricing::Quote, u32, bool) {
+        let index = self.index_of(token_id);
+        require!(index != JADE_INDEX, "jade is the currency, not a good");
+        let token = self.info_of(m, index);
+        let rep = self.reputation(player, merchant_id, m);
+        let q = pricing::quote(m.def(), &token, &m.state, m.position(index), sell, amount.0 as i128, self.current_tick(), rep, self.testimony_bps as i128);
+        if !q.ok() {
+            fail(q.code);
+        }
+        let p = m.position(index).unwrap();
+        let helps = if sell { m.state.stock[p] < m.state.target[p] } else { m.state.stock[p] > m.state.target[p] };
+        (q, index, helps)
+    }
+
+    fn haggle_store() -> LookupMap<(AccountId, AccountId), Haggle> {
+        LookupMap::new(Key::Haggles)
+    }
+    fn job_store() -> LookupMap<AccountId, Job> {
+        LookupMap::new(Key::Jobs)
+    }
+    fn job_view(&self, j: &Job) -> Value {
+        let name = pricing::merchant_def(&j.rules_id).map_or(j.rules_id.as_str(), |d| d.name);
+        json!({"merchant_id": j.merchant_id, "rules_id": j.rules_id, "name": name, "token_id": j.token_id, "wanted": j.wanted,
+            "pay_each": j.pay_each, "escrow": j.escrow, "posted_tick": j.posted_tick, "expires_tick": j.expires_tick,
+            "expired": self.current_tick() >= j.expires_tick})
+    }
+    fn escrow_add(&mut self, delta: i128) {
+        let escrow = env::current_account_id();
+        let held = self.balance(&escrow, JADE_INDEX) as i128;
+        require!(held + delta >= 0, "escrow short");
+        self.set_balance(&escrow, JADE_INDEX, (held + delta) as u128);
     }
 
     fn base_meta(&self, id: &str) -> Value {

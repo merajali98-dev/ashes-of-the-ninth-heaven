@@ -197,3 +197,23 @@ test("a deed's picture is drawn from the ledger: name, status, vault and holder"
   for (const text of ['Lu Yan', 'OPEN', '12.40 jade', 'shen-luo', 'the holder', '1,834.16 jade', 'data:image/webp;base64,']) assert.ok(svg.includes(text), text);
   assert.equal(await deedSvg(market, 'nobody'), null);
 });
+
+test('a relayed haggle comes back with the merchant\'s answer, and the ledger\'s decision is kept for the judges', async () => {
+  const h = await harness();
+  try {
+    const c = h.client();
+    await c.post('/api/auth/guest', {});
+    await c.post('/api/seal', {publicKey: KEY});
+    const receipt = {outcome: 'countered', merchant_id: 'm-lu-yan.ashes', token_id: 'mat:essence-ember-1', amount: '10', sell: true,
+      posted: '10000', offer: '10800', price: '10250', bend_bps: 500, helps: true};
+    h.chain.relay = async () => ({ok: true, receipt, tx: 'haggle-tx'});
+    h.chain.market = async () => ({merchants: [{account_id: receipt.merchant_id, rules_id: 'lu-yan', name: 'Lu Yan', status: 'open'}]});
+    const r = await c.post('/api/seal/relay', {delegate: {senderId: 'x', actions: [{methodName: 'market_haggle'}]}, signature: 'y'});
+    assert.equal(r.json.receipt.outcome, 'countered');
+    assert.match(r.json.say, /102\.50 jade/, 'no model in tests: the rules give the merchant its words');
+    assert.equal(r.json.voice, 'rules');
+    const journal = (await c.get('/api/journal')).json;
+    assert.equal(journal.haggles[0].outcome, 'countered');
+    assert.equal(journal.haggles[0].tx, 'haggle-tx');
+  } finally { await h.close(); }
+});

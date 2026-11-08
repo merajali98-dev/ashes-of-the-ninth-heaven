@@ -513,3 +513,193 @@ fn the_standard_transfer_needs_one_yocto() {
     c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
     c.nft_transfer(acc("bob.test"), "deed:lu-yan".into(), None, None);
 }
+
+// ---------------------------------------------------------------------- haggling
+
+fn lu() -> AccountId {
+    acc("m-lu-yan.test")
+}
+fn ember() -> String {
+    "mat:essence-ember-1".into()
+}
+/// Alice buys 30 Cinder Essence first, so Lu Yan (target 120) is short of it and selling it back "helps" her.
+fn lu_short() -> Contract {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    c.market_buy(lu(), ember(), U128(30), U128(u128::MAX));
+    c
+}
+
+#[test]
+fn an_offer_within_the_merchants_room_is_accepted_at_the_players_price() {
+    let mut c = lu_short();
+    let posted = c.market_quote(lu(), ember(), "sell".into(), U128(10), Some(acc("alice.test"))).total.0;
+    let room = posted * 500 / 10_000; // greedy 2% + 3% because Lu Yan is short
+    let (jade, purse, ministry) = (bal(&c, "alice.test", JADE), bal(&c, "m-lu-yan.test", JADE), bal(&c, "ministry.test", JADE));
+    at("alice.test", 0, 0);
+    let r = c.market_haggle(lu(), ember(), U128(10), true, U128(posted + room));
+    assert_eq!((r.outcome.as_str(), r.price.0, r.bend_bps, r.helps), ("accepted", posted + room, 500, true));
+    assert_eq!(bal(&c, "alice.test", JADE), jade + posted + room);
+    assert_eq!(bal(&c, "ministry.test", JADE), ministry + r.tax.0);
+    assert_eq!(bal(&c, "m-lu-yan.test", JADE), purse - posted - room - r.tax.0, "the merchant pays the price and the tax");
+    assert!(get_logs().iter().any(|l| l.contains("\"event\":\"haggle\"") && l.contains("accepted")));
+}
+
+#[test]
+fn an_offer_worse_than_the_posted_price_gets_the_posted_price() {
+    let mut c = setup();
+    let posted = c.market_quote(acc("m-auntie-shi.test"), "item:paper-talisman".into(), "buy".into(), U128(2), Some(acc("alice.test"))).total.0;
+    at("alice.test", 0, 0);
+    let r = c.market_haggle(acc("m-auntie-shi.test"), "item:paper-talisman".into(), U128(2), false, U128(posted * 2));
+    assert_eq!((r.outcome.as_str(), r.price.0), ("accepted", posted), "an honest merchant never takes more than it posted");
+    assert_eq!(bal(&c, "alice.test", JADE), 50_000 - posted);
+}
+
+#[test]
+fn a_bold_offer_gets_one_counter_the_player_can_take_the_same_day() {
+    let mut c = lu_short();
+    let posted = c.market_quote(lu(), ember(), "sell".into(), U128(10), Some(acc("alice.test"))).total.0;
+    let room = posted * 500 / 10_000;
+    let jade = bal(&c, "alice.test", JADE);
+    at("alice.test", 0, 0);
+    let r = c.market_haggle(lu(), ember(), U128(10), true, U128(posted + room * 3 / 2));
+    assert_eq!((r.outcome.as_str(), r.price.0), ("countered", posted + room / 2));
+    assert_eq!(bal(&c, "alice.test", JADE), jade, "nothing changes hands on a counter");
+    let again = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut copy = lu_short();
+        at("alice.test", 0, 0);
+        copy.market_haggle(lu(), ember(), U128(10), true, U128(posted + room * 3 / 2));
+        copy.market_haggle(lu(), ember(), U128(10), true, U128(posted));
+    }));
+    assert!(again.is_err(), "one haggle per merchant per market day");
+    at("alice.test", 0, 0);
+    let taken = c.market_take_counter(lu());
+    assert_eq!(taken.total.0, posted + room / 2, "the counter stands");
+    assert_eq!(bal(&c, "alice.test", JADE), jade + taken.total.0);
+    assert_eq!(c.haggles_of(acc("alice.test"))[0].outcome, "taken");
+    let twice = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        at("alice.test", 0, 0);
+        c.market_take_counter(lu());
+    }));
+    assert!(twice.is_err(), "a counter is taken once");
+}
+
+#[test]
+fn an_insulting_offer_ends_haggling_with_that_merchant_until_the_next_market_day() {
+    let mut c = lu_short();
+    let posted = c.market_quote(lu(), ember(), "sell".into(), U128(5), Some(acc("alice.test"))).total.0;
+    at("alice.test", TICK, 0);
+    let r = c.market_haggle(lu(), ember(), U128(5), true, U128(posted * 2));
+    assert_eq!(r.outcome, "walked");
+    let blocked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut copy = lu_short();
+        at("alice.test", TICK, 0);
+        copy.market_haggle(lu(), ember(), U128(5), true, U128(posted * 2));
+        at("alice.test", 23 * TICK, 0);
+        copy.market_haggle(lu(), ember(), U128(5), true, U128(1));
+    }));
+    assert!(blocked.is_err(), "HAGGLED_TODAY for the rest of the market day");
+    at("alice.test", 24 * TICK, 0);
+    let next_day = c.market_haggle(lu(), ember(), U128(5), true, U128(1));
+    assert_eq!(next_day.outcome, "accepted", "a new market day, a new haggle");
+}
+
+#[test]
+#[should_panic(expected = "NO_COUNTER")]
+fn there_is_no_counter_to_take_without_a_haggle() {
+    let mut c = setup();
+    at("alice.test", 0, 0);
+    c.market_take_counter(lu());
+}
+
+// ---------------------------------------------------------------------- merchants hire players
+
+fn lu_posts_a_job(c: &mut Contract, units: u128) -> u128 {
+    let pay = c.market_quote(lu(), ember(), "sell".into(), U128(1), None).bid.0;
+    at("m-lu-yan.test", 0, 0);
+    c.merchant_post_job(ember(), U128(units), U128(pay));
+    pay
+}
+
+#[test]
+fn a_short_merchant_hires_players_and_pays_from_escrow() {
+    let mut c = lu_short();
+    let supply = c.mt_supply(JADE.into()).unwrap().0;
+    let purse = bal(&c, "m-lu-yan.test", JADE);
+    let pay = lu_posts_a_job(&mut c, 10);
+    assert_eq!(bal(&c, "m-lu-yan.test", JADE), purse - 10 * pay, "the whole wage leaves the purse");
+    assert_eq!(bal(&c, "items.test", JADE), 10 * pay, "and is held in escrow");
+    let jobs = c.jobs();
+    assert_eq!((jobs.len(), jobs[0]["wanted"].as_str()), (1, Some("10")));
+
+    let (jade, held) = (bal(&c, "alice.test", JADE), bal(&c, "alice.test", &ember()));
+    at("alice.test", TICK / 2, 0);
+    let r = c.job_fill(lu(), U128(4));
+    assert_eq!(r.paid.0 + r.tax.0, 4 * pay);
+    assert_eq!(r.tax.0, 4 * pay * 300 / 10_000, "the Ministry's tax on the wage");
+    assert_eq!(bal(&c, "alice.test", JADE), jade + r.paid.0);
+    assert_eq!(bal(&c, "alice.test", &ember()), held - 4);
+    assert_eq!(bal(&c, "items.test", JADE), 6 * pay);
+    assert_eq!(r.left.0, 6);
+    assert_eq!(c.mt_supply(JADE.into()).unwrap().0, supply, "jobs move jade; they never make it");
+
+    // Nobody delivers the rest: a market day later the wage comes back to the purse.
+    at("anyone.test", 25 * TICK, 0);
+    c.market_advance(vec![lu()]);
+    assert_eq!(bal(&c, "items.test", JADE), 0);
+    assert!(c.jobs().is_empty());
+    assert!(get_logs().iter().any(|l| l.contains("job expired")));
+}
+
+#[test]
+#[should_panic(expected = "NOT_SHORT")]
+fn a_merchant_with_full_shelves_posts_no_job() {
+    let mut c = setup();
+    lu_posts_a_job(&mut c, 5);
+}
+
+#[test]
+#[should_panic(expected = "BAD_PAY")]
+fn a_job_never_pays_more_than_the_merchants_own_valuation() {
+    let mut c = lu_short();
+    let mid = c.market_quote(lu(), ember(), "sell".into(), U128(1), None).mid.0;
+    at("m-lu-yan.test", 0, 0);
+    c.merchant_post_job(ember(), U128(5), U128(mid + 1));
+}
+
+#[test]
+#[should_panic(expected = "JOB_OPEN")]
+fn one_job_at_a_time() {
+    let mut c = lu_short();
+    lu_posts_a_job(&mut c, 5);
+    lu_posts_a_job(&mut c, 5);
+}
+
+#[test]
+#[should_panic(expected = "only a merchant posts jobs")]
+fn players_do_not_post_jobs() {
+    let mut c = lu_short();
+    at("alice.test", 0, 0);
+    c.merchant_post_job(ember(), U128(5), U128(100));
+}
+
+#[test]
+#[should_panic(expected = "JOB_EXPIRED")]
+fn an_expired_job_pays_nothing() {
+    let mut c = lu_short();
+    lu_posts_a_job(&mut c, 5);
+    at("alice.test", 24 * TICK, 0);
+    c.job_fill(lu(), U128(1));
+}
+
+#[test]
+#[should_panic(expected = "DEED_HOLDER_DECIDES")]
+fn a_deed_holder_who_runs_the_shop_also_decides_its_hiring() {
+    let mut c = lu_short();
+    at("owner.test", 0, 0);
+    c.deed_mint_all();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    c.deed_appoint_agent("deed:lu-yan".into(), false);
+    lu_posts_a_job(&mut c, 5);
+}

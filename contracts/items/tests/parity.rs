@@ -113,3 +113,26 @@ fn the_contract_prices_every_recorded_trade_exactly_like_the_rules_file() {
     assert_eq!(checks, 7);
     assert!(trades > 1_000 && refusals > 100, "trades {trades}, refusals {refusals}");
 }
+
+/// Haggling and job checks: every case worked out by the rules file (`tests/fixtures/haggle-cases.json`, written by
+/// `scripts/gen-haggle-cases.mjs`) must come out the same from the contract's pricing module.
+#[test]
+fn the_contract_haggles_and_checks_jobs_exactly_like_the_rules_file() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/haggle-cases.json");
+    let cases: Value = serde_json::from_str(&std::fs::read_to_string(path).expect("run node scripts/gen-haggle-cases.mjs")).unwrap();
+    let int = |v: &Value| v.as_i64().unwrap() as i128;
+    let haggles = cases["haggles"].as_array().unwrap();
+    for c in haggles {
+        let def = pricing::merchant_def(c["m"].as_str().unwrap()).unwrap();
+        let h = pricing::haggle(def, c["side"] == "sell", int(&c["posted"]), int(&c["offer"]), c["helps"].as_bool().unwrap(), c["struggling"].as_bool().unwrap());
+        assert_eq!((h.outcome, h.price, h.bend_bps), (c["outcome"].as_str().unwrap(), int(&c["price"]), int(&c["bendBps"])), "{c}");
+    }
+    let jobs = cases["jobs"].as_array().unwrap();
+    for c in jobs {
+        let def = pricing::merchant_def(c["m"].as_str().unwrap()).unwrap();
+        let books = pricing::JobBooks { stock: int(&c["stock"]), target: int(&c["target"]), bid: int(&c["bid"]), mid: int(&c["mid"]),
+            cash: int(&c["cash"]), open: c["open"].as_bool().unwrap() };
+        assert_eq!(pricing::check_job(def, &books, int(&c["units"]), int(&c["payEach"])), c["code"].as_str().unwrap(), "{c}");
+    }
+    assert!(haggles.len() > 3_000 && jobs.len() > 1_000);
+}

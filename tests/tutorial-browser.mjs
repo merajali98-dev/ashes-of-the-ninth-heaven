@@ -51,6 +51,7 @@ try {
   await phone.locator('[data-action="begin"]').click();await phone.locator('input[name="name"]').fill('Mobile Pilgrim');await phone.locator('form[data-form="begin"] button[type="submit"]').click();
   async function mobileSteps(length) {
     for(let step=0;step<length;step++) {
+      await phone.locator('.tutorial-card').waitFor({state:'visible'}); // the card is redrawn when the sign-in state arrives
       const box=await phone.locator('.tutorial-card').boundingBox();
       assert.ok(box.x>=0&&box.y>=0&&box.x+box.width<=390&&box.y+box.height<=844,'Tutorial controls fit mobile viewport');
       assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth),390);

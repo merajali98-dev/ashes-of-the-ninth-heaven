@@ -17,7 +17,7 @@ test('the rules file is pure: no clock, randomness, imports or floating-point ro
   const source = await readFile(new URL('../js/market/merchant-rules.js', import.meta.url), 'utf8');
   for (const banned of [/\bDate\b/, /Math\.random/, /^import /m, /Math\.round/, /\bfetch\(/, /localStorage/])
     assert.doesNotMatch(source, banned);
-  assert.ok(source.split('\n').length <= 300, 'the rules file stays readable in one sitting');
+  assert.ok(source.split('\n').length <= 340, 'the rules file stays readable in one sitting (pricing, haggling and jobs)');
 });
 
 test('the rules satisfy their own invariants', () => {

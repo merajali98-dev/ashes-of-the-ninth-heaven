@@ -307,6 +307,7 @@ function settings() {
 
 // Sign-in and the ledger seal (js/online). The practice market keeps working whatever happens here.
 let sealFlow={};
+let haggleFlow=null;
 const SEAL_ERRORS={BAD_EMAIL:'That email does not look right.',WRONG_CODE:'That code is not right. Check it and try again.',
   CODE_EXPIRED:'That code has expired. Ask for a new one.',SLOW_DOWN:'Too many tries. Wait a few minutes and try again.',
   NAME_TAKEN:'That name is already in the ledger. Choose another.',BAD_NAME:'Names use 3–20 lowercase letters, numbers or dashes, starting with a letter.',
@@ -468,6 +469,25 @@ function activate(action,id = '') {
       const [merchantId,token,quantity]=id.split('|');
       const result=market.playerTrade(game,merchantId,token,action==='market-sell'?'sell':'buy',Number(quantity));
       if(result instanceof Promise){notify('Recording the trade on the Honest Ledger…');result.then(r=>change(action,r))}else change(action,result);break;
+    }
+    case 'haggle-open': {
+      const [merchantId,token,quantity,side]=id.split('|');
+      haggleFlow={merchantId,tokenId:token,qty:Number(quantity)||1,side:side==='buy'?'buy':'sell'};
+      openDialog(marketViews.haggleDialog(game,haggleFlow));break;
+    }
+    case 'haggle-take': {
+      if(!haggleFlow)break;
+      notify('Recording it on the Honest Ledger…');
+      ledger.takeCounter(game,id).then(r=>{
+        if(r.ok){haggleFlow={...haggleFlow,result:{outcome:'accepted',price:r.total,say:'A deal, then.',lines:[],voice:'rules',record:r.record}};openDialog(marketViews.haggleDialog(game,haggleFlow))}
+        change('haggle-take',r.ok?{ok:true,message:`Done at ${(r.total/100).toFixed(2)} jade.`}:r);
+      });break;
+    }
+    case 'job-fill': {
+      const [merchantId,quantity]=id.split('|'),job=(ledger.ledger.jobs??[]).find(j=>j.merchant_id===merchantId);
+      if(!job){notify('That job is already done.',true);render();break}
+      notify('Delivering the goods…');
+      ledger.fillJob(game,job,Number(quantity)).then(r=>change(action,r.ok?{ok:true,message:`Delivered ${quantity}. ${job.name} paid you ${(r.paid/100).toFixed(2)} jade.`}:r));break;
     }
     case 'deed-buy':case 'deed-claim':case 'deed-unlist':case 'deed-agent': {
       const [token,flag]=id.split('|'),deed=ledger.ledger.deeds.find(d=>d.token_id===token);
@@ -743,6 +763,17 @@ document.addEventListener('submit',event => {
   if (!form.dataset.form) return;
   event.preventDefault();
   const fields = new FormData(form);
+  if (form.dataset.form === 'haggle') {
+    if(!haggleFlow)return;
+    const offer=Math.round(Number(fields.get('offer'))*100);
+    if(!(offer>0)){notify('Name a price above zero.',true);return}
+    haggleFlow={...haggleFlow,busy:true};openDialog(marketViews.haggleDialog(game,haggleFlow));
+    ledger.haggle(game,haggleFlow.merchantId,haggleFlow.tokenId,haggleFlow.side,haggleFlow.qty,offer).then(r=>{
+      haggleFlow={...haggleFlow,busy:false,result:r.ok?r:null};
+      if(r.ok){persist();render();openDialog(marketViews.haggleDialog(game,haggleFlow))}else{openDialog(marketViews.haggleDialog(game,haggleFlow));notify(r.reason,true)}
+    });
+    return;
+  }
   if (form.dataset.form === 'deed-list' || form.dataset.form === 'deed-specialty') {
     const deed=ledger.ledger.deeds.find(d=>d.token_id===form.dataset.id);if(!deed)return;
     notify('Recording it on the Honest Ledger…');

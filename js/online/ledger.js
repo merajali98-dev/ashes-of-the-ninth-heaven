@@ -36,6 +36,9 @@ export async function refresh() {
     ledger.listings = data.listings ?? [];
     ledger.journal = data.journal ?? {};
     ledger.deeds = data.deeds ?? [];
+    ledger.jobs = data.jobs ?? [];
+    ledger.haggles = data.haggles ?? [];
+    ledger.talk = data.talk ?? [];
     ledger.contract = data.contract;
     if (data.balances) ledger.balances = data.balances;
     ledger.active = Boolean(data.balances && data.contract);
@@ -125,7 +128,9 @@ export async function reconcile(game, reason = 'the game') {
   } finally { ledger.syncing--; }
 }
 
-const CODES = {NOT_FOR_SALE: 'That deed is not for sale.', TOO_MANY_DEEDS: 'One cultivator may hold at most three deeds.', ALREADY_YOURS: 'You already hold that deed.',
+const CODES = {HAGGLED_TODAY: 'You have already haggled with this merchant today. Come back next market day.', NO_COUNTER: 'That counter-offer has lapsed.',
+  NO_JOB: 'That job is already done.', JOB_EXPIRED: 'That job has closed.', BAD_OFFER: 'Name a price above zero.', BAD_QTY: 'That is more than the job asks for.',
+  NOT_FOR_SALE: 'That deed is not for sale.', TOO_MANY_DEEDS: 'One cultivator may hold at most three deeds.', ALREADY_YOURS: 'You already hold that deed.',
   STRATEGY_ALREADY_SET_TODAY: 'The shop has already decided today. Try again next market day.', NO_DEED: 'That deed does not exist.', NO_LISTING: 'That listing has just been sold or taken down.', OWN_LISTING: 'That is your own listing.', NOT_ENOUGH: 'There are not that many left.',
   TOO_MANY_LISTINGS: 'You already have 20 listings up.', MARKET_FULL: 'The stalls are full right now. Try again later.', BAD_PRICE: 'Choose a price between 0.01 and 1,000,000 jade.',
   NO_JADE: 'You need more jade for that.', NOT_YOURS: 'Only the seller can take that down.', PRICE_MOVED: 'Prices moved while you haggled. Look again and retry.', MERCHANT_CLOSED: 'That shop has closed.',
@@ -266,3 +271,52 @@ export async function claimDeed(game, deed) {
 }
 export const appointAgent = (game, deed, appoint) => deedCall(game, 'deed_appoint_agent', {token_id: deed.token_id, appoint});
 export const setDeedSpecialty = (game, deed, school) => deedCall(game, 'deed_set_strategy', {token_id: deed.token_id, target_bps: [], specialty: school || null});
+
+// ------------------------------------------------------------------ haggling and merchants' jobs
+
+const marketDay = () => Math.floor((ledger.books?.tick ?? 0) / 24);
+/** Today's haggle with a merchant, if any (accepted, countered, walked or taken). */
+export function haggleToday(merchantId) {
+  const books = ledger.books?.merchants[merchantId];
+  const h = books && (ledger.haggles ?? []).find(x => x.merchant_id === books.account_id);
+  return h && h.day === marketDay() ? h : null;
+}
+const traded = (game, tokenId, side, qty, total) => {
+  const sign = side === 'sell' ? 1 : -1;
+  applyBalances(game, {...ledger.balances, jade: ledger.balances.jade + sign * total, [tokenId]: (ledger.balances[tokenId] ?? 0) - sign * qty});
+};
+
+/** Name your total for a trade. The ledger decides by the rules file (accept, one counter, or walk away); the merchant
+ *  then says why, in character. */
+export async function haggle(game, merchantId, tokenId, side, qty, offerCents) {
+  const books = ledger.books?.merchants[merchantId];
+  if (!books) return {ok: false, reason: reasonFor('OFFLINE')};
+  const result = await listingCall('market_haggle', {merchant_id: books.account_id, token_id: tokenId, amount: String(qty), sell: side === 'sell', offer: String(offerCents)});
+  if (!result.ok) return result;
+  const r = result.receipt ?? {};
+  if (r.outcome === 'accepted') traded(game, tokenId, side, qty, Number(r.price));
+  await refresh();
+  return {ok: true, outcome: r.outcome, price: Number(r.price), posted: Number(r.posted), offer: Number(r.offer), bendBps: r.bend_bps,
+    say: result.say ?? '', lines: result.lines ?? [], voice: result.voice ?? 'rules', record: result.tx};
+}
+
+export async function takeCounter(game, merchantId) {
+  const books = ledger.books?.merchants[merchantId], h = haggleToday(merchantId);
+  if (!books || !h) return {ok: false, reason: reasonFor('NO_COUNTER')};
+  const result = await listingCall('market_take_counter', {merchant_id: books.account_id});
+  if (!result.ok) return result;
+  const total = Number(result.receipt?.total ?? h.price);
+  traded(game, h.token_id, h.sell ? 'sell' : 'buy', Number(h.amount), total);
+  await refresh();
+  return {ok: true, total, record: result.tx};
+}
+
+/** Deliver goods to a merchant's job: the wage comes out of escrow, less the Ministry's tax. */
+export async function fillJob(game, job, amount) {
+  const result = await listingCall('job_fill', {merchant_id: job.merchant_id, amount: String(amount)});
+  if (!result.ok) return result;
+  const paid = Number(result.receipt?.paid ?? 0);
+  applyBalances(game, {...ledger.balances, jade: ledger.balances.jade + paid, [job.token_id]: (ledger.balances[job.token_id] ?? 0) - amount});
+  await refresh();
+  return {ok: true, paid, record: result.tx};
+}

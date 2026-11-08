@@ -11,6 +11,7 @@ import {ChainError} from './chain/service.js';
 import {WELCOME} from './grants.js';
 import {MARKET_TOKENS} from '../js/market/tokens.js';
 import {replayCommission} from '../js/progression.js';
+import {haggleSay} from './agents.js';
 
 const LEDGER_TOKENS = ['jade', ...Object.keys(MARKET_TOKENS)];
 // What one account may add to its holdings per hour without a market trade (battle rewards, selling gear). Day 7 adds
@@ -171,16 +172,30 @@ export function createApi({store, chain, googleKeys} = {}) {
     'POST /api/seal/relay': async (req, body) => {
       const user = needSeal(req);
       limit('relay:' + user.id, 30, 60e3);
-      return chain.relay(user.player, body);
+      const result = await chain.relay(user.player, body);
+      if (result.ok && body.delegate?.actions?.[0]?.methodName === 'market_haggle' && result.receipt) {
+        // The ledger decided the haggle; the merchant now says so in its own voice (NEAR AI, or the rules' words).
+        const market = await chain.market().catch(() => null);
+        const books = market?.merchants.find(m => m.account_id === result.receipt.merchant_id);
+        const voice = await haggleSay(result.receipt, books);
+        Object.assign(result, {say: voice.say, lines: voice.lines, voice: voice.source});
+        data.haggles = [{at: Date.now(), rules_id: books?.rules_id ?? null, name: books?.name ?? null, player: user.player.accountId.split('.')[0],
+          token_id: result.receipt.token_id, amount: result.receipt.amount, side: result.receipt.sell ? 'sell' : 'buy', posted: result.receipt.posted,
+          offer: result.receipt.offer, outcome: result.receipt.outcome, price: result.receipt.price, say: voice.say, source: voice.source, tx: result.tx},
+          ...(data.haggles ?? [])].slice(0, 30);
+        store.save();
+      }
+      return result;
     },
 
     // The market as the ledger has it: nine merchants' books, and (when sealed) the player's balances.
     'GET /api/ledger': async req => {
       const user = currentUser(req);
       const market = await chain.market();
-      const balances = user?.player ? await chain.balances(user.player.accountId, LEDGER_TOKENS) : null;
+      const [balances, haggles] = user?.player ? await Promise.all([chain.balances(user.player.accountId, LEDGER_TOKENS),
+        chain.haggles ? chain.haggles(user.player.accountId) : []]) : [null, []];
       const journal = Object.fromEntries(Object.entries(data.journal ?? {}).map(([id, entries]) => [id, entries[0]]));
-      return {ledger: {...market, balances, seal: user?.player?.accountId ?? null, contract: chain.contract, journal}};
+      return {ledger: {...market, balances, haggles, seal: user?.player?.accountId ?? null, contract: chain.contract, journal, talk: (data.haggles ?? []).slice(0, 6)}};
     },
 
     'GET /api/ledger/quote': async (req, _body, url) => {
@@ -246,7 +261,7 @@ export function createApi({store, chain, googleKeys} = {}) {
       return {ok: true, granted};
     },
 
-    'GET /api/journal': async () => ({ledger: data.journal ?? {}}),
+    'GET /api/journal': async () => ({ledger: data.journal ?? {}, haggles: data.haggles ?? []}),
 
     'GET /api/status': async () => ({...(await chain.report()), players: Object.keys(data.users).length,
       seals: Object.values(data.users).filter(u => u.player).length}),

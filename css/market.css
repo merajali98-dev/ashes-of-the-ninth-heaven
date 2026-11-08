@@ -204,3 +204,20 @@
 .deed-sell{display:flex;gap:6px}
 .deed-sell input,.deed-sell select{width:110px;min-height:34px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel-hi);color:var(--text);font:inherit}
 .header-seal{margin-right:6px}
+
+/* Haggling and merchants hiring */
+.haggle{display:flex;flex-direction:column;gap:12px;max-width:520px}
+.haggle-head{display:flex;gap:12px;align-items:flex-start}
+.haggle-head .merchant-face{width:72px;height:72px;border-radius:50%;object-fit:cover;flex:none}
+.haggle-head small{display:block;color:var(--muted)}
+.haggle-head p{margin:6px 0 0}
+.haggle-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.haggle-form label{display:flex;flex-direction:column;gap:4px;font-size:1rem}
+.haggle-form input{width:150px;min-height:42px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel-hi);color:var(--text);font:1.15rem var(--serif)}
+.haggle-say{margin:0;padding:12px 14px;border-left:3px solid var(--gold);background:var(--panel-hi);border-radius:0 8px 8px 0;font:1.15rem/1.45 var(--serif)}
+.haggle-say small{display:block;margin-top:6px;font:0.85rem var(--sans,system-ui);color:var(--muted)}
+.haggle-why ul{margin:6px 0 0;padding-left:18px}
+.haggle-done{font-size:1.1rem}
+.quick-jobs{border-color:var(--gold)}
+@media(max-width:670px){.header-seal{margin-right:2px;padding:3px 8px;min-height:28px;font-size:.75rem;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media(max-width:440px){.game-wordmark>span{display:none}}

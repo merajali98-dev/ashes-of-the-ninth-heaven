@@ -9,6 +9,8 @@
  *   mid      = base * scarcity * demand * edict * event, held between 30% and 300% of base
  *   bid      = mid * (1 - spread + specialty premium) * purse    what the merchant PAYS you, minus tax
  *   ask      = mid * (1 + spread)                                 what the merchant CHARGES you, plus tax
+ *   haggle   = your price if within posted ± room; one counter halfway if within twice the room; else it walks away
+ *   job      = a short merchant pays between its bid and its mid per unit, from its purse into escrow
  *
  * Each unit in a trade is priced at the stock it leaves behind, so selling 20 at once earns less than 20 times the
  * first price, and buying then selling straight back always loses money.
@@ -30,9 +32,9 @@ export const TIME = Object.freeze({ticksPerDay: 24, ticksPerWeek: 168, maxCatchU
 
 /** Temperament changes these parameters, never the formula. */
 export const TEMPERAMENTS = Object.freeze({
-  cautious: {kQuarters: 2, spreadBps: 1_500, flowWeightBps: 1_000, flowFadeBps: 600, reversionBps: 200, loyaltyBps: 0},
-  loyal: {kQuarters: 3, spreadBps: 1_000, flowWeightBps: 2_000, flowFadeBps: 800, reversionBps: 300, loyaltyBps: 5_000},
-  greedy: {kQuarters: 4, spreadBps: 800, flowWeightBps: 3_500, flowFadeBps: 1_200, reversionBps: 400, loyaltyBps: 0},
+  cautious: {kQuarters: 2, spreadBps: 1_500, flowWeightBps: 1_000, flowFadeBps: 600, reversionBps: 200, loyaltyBps: 0, haggleBps: 400},
+  loyal: {kQuarters: 3, spreadBps: 1_000, flowWeightBps: 2_000, flowFadeBps: 800, reversionBps: 300, loyaltyBps: 5_000, haggleBps: 300},
+  greedy: {kQuarters: 4, spreadBps: 800, flowWeightBps: 3_500, flowFadeBps: 1_200, reversionBps: 400, loyaltyBps: 0, haggleBps: 200},
 });
 export const DEMAND_BAND = Object.freeze({minBps: 8_000, maxBps: 12_500});
 export const STOREROOM_BPS = 50_000;        // a merchant holds at most 5× its target, then refuses more
@@ -70,6 +72,9 @@ export const PATRONAGE = Object.freeze({maxPublicBps: 4_900, maxPatrons: 10});
 // deed's own vault; the Ministry sells each deed once at this price, paid into the shop's purse; one account may hold
 // at most this many deeds.
 export const DEED = Object.freeze({ownerShareBps: 1_000, priceCents: 10_000, maxPerAccount: 3});
+/** Haggling: extra room when your deal fixes a shortage or glut; walks away beyond twice its room. Jobs: units, purse share, hours. */
+export const HAGGLE = Object.freeze({needBps: 300, walkAwayBps: 20_000});
+export const JOBS = Object.freeze({maxUnits: 20, maxEscrowBps: 1_000, ttlTicks: 24});
 /** The Paper Taxman's cut of every trade. Collective Testimony (players clearing the campaign) lowers it. */
 export const TAX = Object.freeze({baseBps: 300});
 
@@ -188,11 +193,40 @@ export function quote({merchant, state, token, side, qty = 1, tick = 0, reputati
     units.push(unitPrices(merchant, token, state, side, at(s, f).mid, reputationBps, tax));
   }
   const total = units.reduce((sum, n) => sum + n, 0);
-  const taxPaid = side === 'sell' ? div(total * tax, BPS - tax) : total - div(total * BPS, BPS + tax);
+  const taxPaid = taxOn(total, side, tax);
   if (side === 'sell' && (state.cash - total - taxPaid) * BPS < merchant.startCash * PURSE.stopBuyingBelowBps)
     return fail('PURSE_EMPTY', `${merchant.name}'s purse is too thin to buy that many.`);
   const done = {...base, ok: true, code: 'OK', reason: '', units, total, taxPaid};
   return {...done, lines: explain(merchant, token, state, now, {...done, tax, reputationBps})};
+}
+
+/** The Paper Taxman's cut inside a total: on a sale the merchant pays it on top; on a purchase it is part of the price. */
+export const taxOn = (total, side, tax) => side === 'sell' ? div(total * tax, BPS - tax) : total - div(total * BPS, BPS + tax);
+
+/** Haggle over a quote's total (`posted`; `offer` is yours). Room = posted × (temperament haggleBps + needBps if you
+ *  fix its shortage or glut; none when a thin purse would pay over its price). One haggle per merchant per day. */
+export function haggle({merchant, side, posted, offer, helps = false, struggling = false}) {
+  const sell = side === 'sell';
+  const bendBps = sell && struggling ? 0 : temperamentOf(merchant).haggleBps + (helps ? HAGGLE.needBps : 0);
+  const room = div(posted * bendBps, BPS), over = sell ? offer - posted : posted - offer;
+  const toward = n => sell ? posted + n : posted - n;
+  if (over <= 0) return {outcome: 'accepted', price: posted, bendBps, room};
+  if (over <= room) return {outcome: 'accepted', price: offer, bendBps, room};
+  if (room === 0 || over * BPS <= room * HAGGLE.walkAwayBps) return {outcome: 'countered', price: toward(div(room, 2)), bendBps, room};
+  return {outcome: 'walked', price: 0, bendBps, room};
+}
+
+/** A job for one good: units (up to the shortfall), pay per unit (bid to mid), and the most the purse may escrow. */
+export const jobTerms = (merchant, {stock, target, bid, mid, cash, open}) => ({maxUnits: Math.min(JOBS.maxUnits, open ? Math.max(0, target - stock) : 0),
+  minPay: bid, maxPay: Math.max(bid, mid), maxEscrow: div(cash * JOBS.maxEscrowBps, BPS), floor: div(merchant.startCash * PURSE.stopBuyingBelowBps, BPS)});
+export function checkJob(merchant, books, {units, payEach}) { // 'OK' or why the contract refuses the job
+  const t = jobTerms(merchant, books);
+  if (!books.open) return 'PURSE_TOO_THIN';
+  if (!t.maxUnits) return 'NOT_SHORT';
+  if (!Number.isSafeInteger(units) || units < 1 || units > t.maxUnits) return 'BAD_QTY';
+  if (!Number.isSafeInteger(payEach) || payEach < t.minPay || payEach > t.maxPay) return 'BAD_PAY';
+  if (units * payEach > t.maxEscrow || books.cash - units * payEach < t.floor) return 'TOO_DEAR';
+  return 'OK';
 }
 
 /** Apply an accepted quote to a copy of the merchant's state. The Paper Taxman's cut leaves the merchant's purse too. */
@@ -295,5 +329,8 @@ export function validateRules() {
   if (!(PURSE.closeBelowBps < PURSE.stopBuyingBelowBps && PURSE.stopBuyingBelowBps < PURSE.closeAtDayEndBelowBps &&
     PURSE.closeAtDayEndBelowBps < PURSE.thinBelowBps && PURSE.closeAtDayEndBelowBps < PURSE.reopenAtBps)) problems.push('purse thresholds out of order');
   if (CARAVAN.surplusValueBps >= CARAVAN.restockCostBps) problems.push('caravans must not profit from round trips');
+  for (const t of MERCHANTS.map(temperamentOf)) // haggling both ways must never beat the spread, even tax-free
+    if (!(t.haggleBps >= 0) || 2 * t.haggleBps + HAGGLE.needBps >= 2 * (t.spreadBps - div(t.spreadBps * t.loyaltyBps, BPS))) problems.push('haggling room must stay inside the spread');
+  if (HAGGLE.walkAwayBps < BPS) problems.push('a merchant must not walk away inside its own room');
   return problems;
 }

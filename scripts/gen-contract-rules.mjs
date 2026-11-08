@@ -54,11 +54,16 @@ export function renderRules() {
     `pub const DEED_OWNER_SHARE_BPS: i128 = ${int(R.DEED.ownerShareBps)};`,
     `pub const DEED_PRICE: u128 = ${int(R.DEED.priceCents)};`,
     `pub const DEED_MAX_PER_ACCOUNT: usize = ${int(R.DEED.maxPerAccount)};`,
+    `pub const HAGGLE_NEED_BPS: i128 = ${int(R.HAGGLE.needBps)};`,
+    `pub const HAGGLE_WALK_AWAY_BPS: i128 = ${int(R.HAGGLE.walkAwayBps)};`,
+    `pub const JOB_MAX_UNITS: i128 = ${int(R.JOBS.maxUnits)};`,
+    `pub const JOB_MAX_ESCROW_BPS: i128 = ${int(R.JOBS.maxEscrowBps)};`,
+    `pub const JOB_TTL_TICKS: u64 = ${int(R.JOBS.ttlTicks)};`,
     `pub const MERCHANTS: [MerchantDef; ${R.MERCHANTS.length}] = [`,
     ...R.MERCHANTS.map(m => {
       const x = t(m.id);
       return `    MerchantDef { id: ${str(m.id)}, name: ${str(m.name)}, start_cash: ${int(m.startCash)}, consumables: ${Boolean(m.consumables)},\n` +
-        `        temperament: Temperament { k_quarters: ${int(x.kQuarters)}, spread_bps: ${int(x.spreadBps)}, flow_weight_bps: ${int(x.flowWeightBps)}, flow_fade_bps: ${int(x.flowFadeBps)}, reversion_bps: ${int(x.reversionBps)}, loyalty_bps: ${int(x.loyaltyBps)} },\n` +
+        `        temperament: Temperament { k_quarters: ${int(x.kQuarters)}, spread_bps: ${int(x.spreadBps)}, flow_weight_bps: ${int(x.flowWeightBps)}, flow_fade_bps: ${int(x.flowFadeBps)}, reversion_bps: ${int(x.reversionBps)}, loyalty_bps: ${int(x.loyaltyBps)}, haggle_bps: ${int(x.haggleBps)} },\n` +
         `        families: &[${Object.entries(m.families).map(([f, role]) => `(${str(f)}, Role::${role === 'specialty' ? 'Specialty' : 'Side'})`).join(', ')}] },`;
     }),
     '];',
