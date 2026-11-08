@@ -305,6 +305,19 @@ pub struct JobBooks {
     pub open: bool,
 }
 
+/// "OK" or why a merchant may not fill another merchant's job from its own books (see `checkFill` in merchant-rules.js).
+pub fn check_fill(stock: i128, target: i128, bid: i128, closed: bool, units: i128, pay_each: i128) -> &'static str {
+    if closed {
+        "CLOSED"
+    } else if units < 1 || units > stock - target {
+        "NOT_SURPLUS"
+    } else if pay_each < bid {
+        "TOO_CHEAP"
+    } else {
+        "OK"
+    }
+}
+
 /// "OK" or why a job is refused (see `checkJob` in merchant-rules.js).
 pub fn check_job(def: &MerchantDef, b: &JobBooks, units: i128, pay_each: i128) -> &'static str {
     if !b.open {

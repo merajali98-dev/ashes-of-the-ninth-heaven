@@ -365,19 +365,23 @@ export function hiringPanel(game) {
   if (!onLedger()) return '';
   const world = marketWorld(game);
   const open = (ledgerState.jobs ?? []).filter(j => !j.expired && world.tokens[j.token_id]);
-  if (!open.length) return '';
+  const hires = (ledgerState.hires ?? []).filter(h => h.ok).slice(0, 2);
+  if (!open.length && !hires.length) return '';
+  const now = ledgerState.books?.tick ?? 0;
   const rows = open.slice(0, 4).map(j => {
     const token = world.tokens[j.token_id], have = owned(game, j.token_id), n = Math.min(have, Number(j.wanted));
-    const hours = Math.max(1, j.expires_tick - (ledgerState.books?.tick ?? 0));
+    const hours = Math.max(1, j.expires_tick - now), first = Number(j.posted_tick) + R.JOBS.playersFirstTicks - now;
     const best = bestPrices(game, j.token_id).bid;
     const better = best ? ` · others pay ${R.jade(best.bid)}` : '';
     return `<li class="quick-row">${tokenIcon(token)}<span class="quick-name"><b>${esc(j.name)} wants ${esc(j.wanted)} ${esc(token.name)}</b>
-      <small>You have ${have} · ${hours} market ${hours === 1 ? 'hour' : 'hours'} left${better}</small></span>
+      <small>You have ${have} · ${first > 0 ? `yours alone for ${first} more market ${first === 1 ? 'hour' : 'hours'}, then other merchants may fill it` : `${hours} market ${hours === 1 ? 'hour' : 'hours'} left, other merchants may fill it too`}${better}</small></span>
       <span class="quick-price"><small>Pays each</small><b>${R.jade(Number(j.pay_each))}</b></span>
       <span class="quick-actions">${n > 0 ? button(`Deliver ${n}`, 'job-fill', `${j.merchant_id}|${n}`, {className: 'compact'}) : '<small>Commissions bring these back</small>'}</span></li>`;
   }).join('');
-  return `<section class="quick-panel quick-jobs"><h2>Merchants hiring</h2><ul class="quick-list">${rows}</ul>
-    <p class="microcopy">A merchant short of a good posts a job and its agent sets the pay: above what it usually pays you, never above its own valuation. The wages are held in escrow on the Honest Ledger until you deliver.</p></section>`;
+  const lately = hires.map(h => `<li>${esc(h.fillerName)} filled ${esc(h.hirerName)}'s job: ${esc(h.units)} ${esc(h.name)} at ${R.jade(Number(h.payEach))} jade each.</li>`).join('');
+  return `<section class="quick-panel quick-jobs"><h2>Merchants hiring</h2>${rows ? `<ul class="quick-list">${rows}</ul>` : ''}
+    <p class="microcopy">A merchant short of a good posts a job and its agent sets the pay: above what it usually pays you, never above its own valuation. The wages are held in escrow on the Honest Ledger until you deliver. Cultivators get the first ${R.JOBS.playersFirstTicks} market hours; after that a merchant with goods to spare may take the job.</p>
+    ${lately ? `<ul class="microcopy quick-lately">${lately}</ul>` : ''}</section>`;
 }
 
 /** The haggle dialog: the posted price, your offer, and the merchant's answer with its reasons. */

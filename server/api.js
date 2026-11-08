@@ -217,7 +217,7 @@ export function createApi({store, chain, googleKeys} = {}) {
       const [balances, haggles] = user?.player ? await Promise.all([chain.balances(user.player.accountId, LEDGER_TOKENS),
         chain.haggles ? chain.haggles(user.player.accountId) : []]) : [null, []];
       const journal = Object.fromEntries(Object.entries(data.journal ?? {}).map(([id, entries]) => [id, entries[0]]));
-      return {ledger: {...market, balances, haggles, seal: user?.player?.accountId ?? null, contract: chain.contract, journal, talk: (data.haggles ?? []).slice(0, 6)}};
+      return {ledger: {...market, balances, haggles, seal: user?.player?.accountId ?? null, contract: chain.contract, journal, talk: (data.haggles ?? []).slice(0, 6), hires: (data.hires ?? []).slice(0, 6)}};
     },
 
     'GET /api/ledger/quote': async (req, _body, url) => {
@@ -301,7 +301,7 @@ export function createApi({store, chain, googleKeys} = {}) {
       return countingRoom(tokenId, await gate.check(tokenId, req.headers['x-room-pass']));
     },
 
-    'GET /api/journal': async () => ({ledger: data.journal ?? {}, haggles: data.haggles ?? []}),
+    'GET /api/journal': async () => ({ledger: data.journal ?? {}, haggles: data.haggles ?? [], hires: data.hires ?? []}),
 
     'GET /api/status': async () => ({...(await chain.report()), players: Object.keys(data.users).length,
       seals: Object.values(data.users).filter(u => u.player).length}),

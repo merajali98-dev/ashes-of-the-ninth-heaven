@@ -10,7 +10,7 @@
  *   bid      = mid * (1 - spread + specialty premium) * purse    what the merchant PAYS you, minus tax
  *   ask      = mid * (1 + spread)                                 what the merchant CHARGES you, plus tax
  *   haggle   = your price if within posted ± room; one counter halfway if within twice the room; else it walks away
- *   job      = a short merchant pays between its bid and its mid per unit, from its purse into escrow
+ *   job      = a short merchant pays bid to mid per unit from escrow; after players' first hours, merchants may fill it
  *
  * Each unit in a trade is priced at the stock it leaves behind, so selling 20 at once earns less than 20 times the
  * first price, and buying then selling straight back always loses money.
@@ -68,13 +68,12 @@ export const EVENTS = Object.freeze({periodTicks: 30, durationTicks: 8, list: [
 ]});
 /** Patrons may own up to 49% of a merchant (their stake against its starting purse) and share its daily profit. */
 export const PATRONAGE = Object.freeze({maxPublicBps: 4_900, maxPatrons: 10});
-// Shop Deeds (NEP-171, on the ledger only): the deed's holder takes this share of each profitable market day into the
-// deed's own vault; the Ministry sells each deed once at this price, paid into the shop's purse; one account may hold
-// at most this many deeds.
+// Shop Deeds (NEP-171, ledger only): the holder's share of each profitable day (into the deed's vault), the Ministry's
+// price (paid into the shop's purse) and the most deeds one account may hold.
 export const DEED = Object.freeze({ownerShareBps: 1_000, priceCents: 10_000, maxPerAccount: 3});
 /** Haggling: extra room when your deal fixes a shortage or glut; walks away beyond twice its room. Jobs: units, purse share, hours. */
 export const HAGGLE = Object.freeze({needBps: 300, walkAwayBps: 20_000});
-export const JOBS = Object.freeze({maxUnits: 20, maxEscrowBps: 1_000, ttlTicks: 24});
+export const JOBS = Object.freeze({maxUnits: 20, maxEscrowBps: 1_000, ttlTicks: 24, playersFirstTicks: 6});
 /** The Paper Taxman's cut of every trade. Collective Testimony (players clearing the campaign) lowers it. */
 export const TAX = Object.freeze({baseBps: 300});
 
@@ -229,6 +228,9 @@ export function checkJob(merchant, books, {units, payEach}) { // 'OK' or why the
   return 'OK';
 }
 
+/** A merchant fills another's job from surplus (books are its own): never below its own target or for less than its bid. */
+export const checkFill = ({stock, target, bid, closed}, {units, payEach}) => closed ? 'CLOSED' : !Number.isSafeInteger(units) || units < 1
+  || units > stock - target ? 'NOT_SURPLUS' : !Number.isSafeInteger(payEach) || payEach < bid ? 'TOO_CHEAP' : 'OK';
 /** Apply an accepted quote to a copy of the merchant's state. The Paper Taxman's cut leaves the merchant's purse too. */
 export function applyQuote(state, q) {
   if (!q.ok) return state;
@@ -332,5 +334,6 @@ export function validateRules() {
   for (const t of MERCHANTS.map(temperamentOf)) // haggling both ways must never beat the spread, even tax-free
     if (!(t.haggleBps >= 0) || 2 * t.haggleBps + HAGGLE.needBps >= 2 * (t.spreadBps - div(t.spreadBps * t.loyaltyBps, BPS))) problems.push('haggling room must stay inside the spread');
   if (HAGGLE.walkAwayBps < BPS) problems.push('a merchant must not walk away inside its own room');
+  if (!(JOBS.playersFirstTicks < JOBS.ttlTicks)) problems.push('players must get the first hours of a job, and then merchants some');
   return problems;
 }

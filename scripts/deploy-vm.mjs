@@ -47,7 +47,7 @@ try {
     }
     for (const m of MERCHANTS) {
       const id = merchantAccount(m.id), key = await loadAgentKey(id);
-      if (key) settings[agentEnvName(id)] = key; // function-call only: merchant_set_strategy
+      if (key) settings[agentEnvName(id)] = key; // function-call only: the agent methods (scripts/agents-setup.mjs)
     }
     envFile = join(dir, 'ashes-env-' + Date.now());
     writeFileSync(envFile, Object.entries(settings).map(([k, v]) => `${k}=${v}`).join('\n') + '\n', {mode: 0o600});

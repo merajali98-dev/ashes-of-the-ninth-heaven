@@ -115,3 +115,31 @@ test("the letter to a deed's holder states the ledger's figures, and a model's l
     assert.equal((await ownerLetter(b, deed, history, 30, {apiKey: 'k', fetchImpl: reply(bad)})).source, 'rules', bad);
   }
 });
+
+test('a job players leave alone goes to the merchant with the most to spare, within checkFill; then the round delivers it', async () => {
+  const {fillOffer} = await import('../server/agents.js');
+  const ember = 'mat:essence-ember-1';
+  const lu = books('lu-yan', {[ember]: 10}), granny = books('granny-qiu', {[ember]: 70}), mu = books('mu-xiao');
+  const job = {merchant_id: lu.account_id, rules_id: 'lu-yan', name: 'Lu Yan', token_id: ember, wanted: '8', pay_each: '300', posted_tick: 100, expires_tick: 124, expired: false};
+  const market = tick => ({tick, merchants: [lu, granny, mu], jobs: [job], deeds: []});
+  assert.equal(fillOffer(market(100 + R.JOBS.playersFirstTicks - 1)), null, 'players have the first hours');
+  const offer = fillOffer(market(100 + R.JOBS.playersFirstTicks));
+  assert.equal(offer.filler.rules_id, 'granny-qiu', 'the merchant that trades the good and has it to spare');
+  assert.equal(offer.units, 8);
+  assert.ok(offer.payEach >= offer.bid, 'never for less than its own bid');
+  assert.equal(fillOffer({...market(110), jobs: [{...job, pay_each: '1'}]}), null, 'too cheap for anyone');
+  assert.equal(fillOffer({...market(110), merchants: [lu, books('granny-qiu', {[ember]: 40}), mu]}), null, 'nobody has surplus');
+  const held = {merchant_id: granny.account_id, held_by_ministry: false, agent: false};
+  assert.equal(fillOffer({...market(110), deeds: [held]}), null, 'a shop whose deed holder decides is left alone');
+
+  const store = {data: {}, save() {}}, calls = [];
+  const chain = {online: async () => true, agentsReady: async () => true, forgetBooks() {}, market: async () => market(110),
+    agentCall: async (id, method, args) => { calls.push({id, method, args}); return {ok: true, tx: 'tx-' + calls.length}; }};
+  await createAgents({store, chain, decide: async (b, t, rules) => rules, perRound: 0}).round();
+  assert.deepEqual(calls, [{id: granny.account_id, method: 'merchant_fill_job', args: {merchant_id: lu.account_id, amount: '8'}}]);
+  const hire = store.data.hires[0];
+  assert.equal(hire.ok, true);
+  assert.equal(hire.tx, 'tx-1');
+  assert.match(hire.said.filler, /Lu Yan was short of Mortal Cinder Essence/);
+  assert.match(hire.said.hirer, /Granny Qiu brought me 8 Mortal Cinder Essence at the wage I posted, 3\.00 jade each/);
+});

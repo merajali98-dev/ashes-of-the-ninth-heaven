@@ -5,7 +5,7 @@ import {mkdir, writeFile} from 'node:fs/promises';
 import * as R from '../js/market/merchant-rules.js';
 
 export function buildHaggleCases() {
-  const haggles = [], jobs = [];
+  const haggles = [], jobs = [], fills = [];
   for (const merchant of R.MERCHANTS) {
     for (const side of ['sell', 'buy']) {
       for (const posted of [1, 199, 1_000, 98_765]) {
@@ -37,12 +37,17 @@ export function buildHaggleCases() {
       }
     }
   }
-  return {haggles, jobs};
+  for (const [stock, target] of [[120, 120], [130, 120], [200, 120], [0, 0], [3, 40]])
+    for (const bid of [1, 150, 1_000])
+      for (const closed of [false, true])
+        for (const units of [-1, 0, 1, 10, 80, 81])
+          for (const payEach of [bid - 1, bid, bid + 50]) fills.push({stock, target, bid, closed, units, payEach, code: R.checkFill({stock, target, bid, closed}, {units, payEach})});
+  return {haggles, jobs, fills};
 }
 
 if (process.argv[1]?.endsWith('gen-haggle-cases.mjs')) {
   await mkdir(new URL('../tests/fixtures/', import.meta.url), {recursive: true});
   const cases = buildHaggleCases();
   await writeFile(new URL('../tests/fixtures/haggle-cases.json', import.meta.url), JSON.stringify(cases) + '\n');
-  console.log(`Wrote tests/fixtures/haggle-cases.json: ${cases.haggles.length} haggles, ${cases.jobs.length} job checks`);
+  console.log(`Wrote tests/fixtures/haggle-cases.json: ${cases.haggles.length} haggles, ${cases.jobs.length} job checks, ${cases.fills.length} fill checks`);
 }

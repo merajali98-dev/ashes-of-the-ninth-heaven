@@ -6,7 +6,8 @@
 //      with it: the vault equals the opening vault + earnings - claims, the shares by day add up to the earnings, and
 //      the last holder in the history is the deed's owner.
 //   5. Jobs: each open job's escrow equals its units times its pay, within the rules' unit cap.
-//   6. Agent keys: every merchant's function-call keys may call only merchant_set_strategy and merchant_post_job.
+//   6. Agent keys: every merchant's function-call keys may call only merchant_set_strategy, merchant_post_job and
+//      merchant_fill_job.
 // Run: npm run chain:verify
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
@@ -78,7 +79,7 @@ check(jobs.every(j => BigInt(j.escrow) === BigInt(j.wanted) * BigInt(j.pay_each)
 
 // 6. Agent keys
 let limited = 0;
-const allowed = ['merchant_set_strategy', 'merchant_post_job'];
+const allowed = ['merchant_set_strategy', 'merchant_post_job', 'merchant_fill_job'];
 for (const id of ids) {
   const keys = (await query({request_type: 'view_access_key_list', account_id: id})).keys;
   for (const k of keys) {

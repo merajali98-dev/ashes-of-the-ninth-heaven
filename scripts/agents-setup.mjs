@@ -1,13 +1,14 @@
-// Gives each merchant account an agent key: a function-call key that can ONLY call `merchant_set_strategy` and
-// `merchant_post_job` on the items contract. The game server holds these agent keys, never the merchants' full keys, so
-// the strategist can adjust a shop's wants once a day and post paid jobs, within the contract's limits, and nothing else.
+// Gives each merchant account an agent key: a function-call key that can ONLY call `merchant_set_strategy`,
+// `merchant_post_job` and `merchant_fill_job` on the items contract. The game server holds these agent keys, never the
+// merchants' full keys, so the agent can adjust a shop's wants once a day, post paid jobs and fill other merchants' jobs,
+// within the contract's limits, and nothing else.
 // Re-runnable: a key that already has every method is kept; an older key is replaced and then deleted.
 // Run: node scripts/agents-setup.mjs   (keys go to ~/.near-credentials/testnet-agents/, or set NEAR_AGENT_KEY_<ACCOUNT>)
 import {KeyPair, parseNearAmount} from 'near-api-js';
 import * as R from '../js/market/merchant-rules.js';
 import {CONTRACT, account, loadAgentKey, merchantAccount, newKeyPair, provider, saveAgentKey} from '../server/chain/near.js';
 
-export const AGENT_METHODS = ['merchant_set_strategy', 'merchant_post_job'];
+export const AGENT_METHODS = ['merchant_set_strategy', 'merchant_post_job', 'merchant_fill_job'];
 
 for (const m of R.MERCHANTS) {
   const id = merchantAccount(m.id);

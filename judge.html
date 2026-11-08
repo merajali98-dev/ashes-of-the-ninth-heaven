@@ -73,13 +73,16 @@ code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px
     </section>
     <section class="wide">
       <h2>The merchants' agents</h2>
-      <p class="muted">Once a market day each merchant decides what to keep, in character through NEAR AI (or by its rules if the model is unavailable), and signs it from its own account with a key that can only call <code>merchant_set_strategy</code>. The contract clamps every target to 60–160%.</p>
+      <p class="muted">Once a market day each merchant decides what to keep, in character through NEAR AI (or by its rules if the model is unavailable), and signs it from its own account with a key that can only call <code>merchant_set_strategy</code>, <code>merchant_post_job</code> and <code>merchant_fill_job</code>. The contract clamps every target to 60–160%.</p>
       <ul class="log" id="journal"><li class="muted">Loading…</li></ul>
     </section>
     <section>
       <h2>Merchants hiring</h2>
       <p class="muted">A merchant short of a good posts one paid job from its own account (<code>merchant_post_job</code>, the same limited agent key). The contract checks the terms against the rules file (pay between its bid and its own valuation, at most 10% of its purse) and holds the wages in escrow until a player delivers or a market day passes.</p>
       <ul class="log" id="jobs"><li class="muted">Loading…</li></ul>
+      <h2 style="margin-top:14px">Merchants hiring merchants</h2>
+      <p class="muted">Players have a job to themselves for its first 6 market hours. After that, another merchant's agent with goods to spare fills it (<code>merchant_fill_job</code>, from its own account): it must keep its own target and is paid at least its own bid (<code>checkFill</code> in the rules file). The wage comes from the hirer's escrow.</p>
+      <ul class="log" id="hires"><li class="muted">Loading…</li></ul>
     </section>
     <section>
       <h2>Haggles</h2>
@@ -103,7 +106,7 @@ code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px
         <tr><td>One pricing file</td><td><code>js/market/merchant-rules.js</code>: the tooltip, the fast-forward and (generated into Rust) the contract all use it; <code>tests/parity.rs</code> replays 3,218 steps exactly.</td></tr>
         <tr><td>Fast-forward</td><td><a href="/#market-sim">/#market-sim</a>: a week of trading in a minute, with flood and audit scenarios.</td></tr>
         <tr><td>NFTs that are shops</td><td>Shop Deeds (NEP-171): the holder takes 10% of each profitable day into the deed's vault and runs the shop or appoints its agent; the vault moves with the deed. Each deed has a history the contract keeps (every holder, what it earned and paid them, sales, claims): <a href="/deed/lu-yan">/deed/lu-yan</a>. Its counting room opens only for the current holder (a NEP-413 signature, the key and the holder checked on the ledger). <code>docs/shop-deeds.md</code></td></tr>
-        <tr><td>AI agents that trade</td><td>Each merchant is an account with an agent key limited to two methods: it sets its strategy daily and hires players for its shortages, in character through NEAR AI, within limits the contract enforces. Players haggle; the rules decide and the agent speaks. <code>docs/agents.md</code></td></tr>
+        <tr><td>AI agents that trade</td><td>Each merchant is an account with an agent key limited to three methods: it sets its strategy daily, hires for its shortages, and fills other merchants' jobs from its surplus (agents hiring agents), in character through NEAR AI, within limits the contract enforces. Players haggle; the rules decide and the agent speaks. <code>docs/agents.md</code></td></tr>
         <tr><td>Game loop on paper</td><td><code>docs/game-loop.md</code>: the 30-second, 5-minute and session loops.</td></tr>
       </tbody></table>
     </section>

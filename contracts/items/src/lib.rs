@@ -23,7 +23,7 @@ pub mod pricing;
 pub mod rules_gen;
 
 use pricing::{MarketState, Status, TokenInfo};
-use rules_gen::{BPS, DEED_MAX_PER_ACCOUNT, DEED_OWNER_SHARE_BPS, DEED_PRICE, JOB_TTL_TICKS, MAX_CATCH_UP_TICKS, PATRON_MAX_PATRONS, PATRON_MAX_PUBLIC_BPS,
+use rules_gen::{BPS, DEED_MAX_PER_ACCOUNT, DEED_OWNER_SHARE_BPS, DEED_PRICE, JOB_PLAYERS_FIRST_TICKS, JOB_TTL_TICKS, MAX_CATCH_UP_TICKS, PATRON_MAX_PATRONS, PATRON_MAX_PUBLIC_BPS,
     PURSE_STOP_BUYING_BELOW_BPS, TICKS_PER_DAY};
 
 pub const JADE: &str = "jade";
@@ -751,6 +751,63 @@ impl Contract {
             emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": self.ministry_id, "token_ids": [JADE], "amounts": [U128(tax)], "memo": "ministry tax"}));
         }
         emit("ashes", "1.0.0", "job_filled", json!({"merchant_id": merchant_id, "account_id": player, "token_id": job.token_id, "amount": amount, "paid": U128(pay)}));
+        JobReceipt { merchant_id, token_id: job.token_id, amount, paid: U128(pay - tax), tax: U128(tax), left: U128(left) }
+    }
+
+    /// A merchant's agent fills another merchant's job from its own surplus: agent hires agent. Players have the job to
+    /// themselves for its first hours; after that the filler must keep its own target and is paid at least its own bid
+    /// (`checkFill` in the rules file). The wage comes from the hirer's escrow, less the Ministry's tax.
+    pub fn merchant_fill_job(&mut self, merchant_id: AccountId, amount: U128) -> JobReceipt {
+        require!(!self.paused, "PAUSED");
+        let filler_id = env::predecessor_account_id();
+        require!(self.merchants.contains_key(&filler_id), "only a merchant fills jobs this way");
+        require!(filler_id != merchant_id, "a merchant cannot fill its own job");
+        let job = Self::job_store().get(&merchant_id).cloned().unwrap_or_else(|| fail("NO_JOB"));
+        let tick = self.current_tick();
+        require!(tick < job.expires_tick, "JOB_EXPIRED");
+        require!(tick >= job.posted_tick + JOB_PLAYERS_FIRST_TICKS, "PLAYERS_FIRST");
+        require!(amount.0 >= 1 && amount.0 <= job.wanted.0, "BAD_QTY");
+        let mut filler = self.caught_up(&filler_id);
+        if let Some(d) = self.deed_for(&filler.rules_id) {
+            require!(d.owner == self.ministry_id || d.agent, "DEED_HOLDER_DECIDES");
+        }
+        let index = self.index_of(&job.token_id);
+        let p = filler.position(index).unwrap_or_else(|| fail("NOT_TRADED"));
+        let q = pricing::quote(filler.def(), &filler.goods_info[p], &filler.state, Some(p), true, 1, tick, 0, self.testimony_bps as i128);
+        let code = pricing::check_fill(filler.state.stock[p] as i128, filler.state.target[p] as i128, q.bid, filler.state.closed,
+            amount.0 as i128, job.pay_each.0 as i128);
+        if code != "OK" {
+            fail(code);
+        }
+        let mut hirer = self.caught_up(&merchant_id);
+        let hp = hirer.position(index).unwrap();
+        let pay = job.pay_each.0 * amount.0;
+        let tax = (pay as i128 * pricing::tax_bps(self.testimony_bps as i128) / BPS) as u128;
+        filler.state.stock[p] -= amount.0 as i64;
+        filler.state.cash += (pay - tax) as i64;
+        hirer.state.stock[hp] += amount.0 as i64;
+        self.escrow_add(-(pay as i128));
+        if tax > 0 {
+            let ministry = self.ministry_id.clone();
+            let have = self.balance(&ministry, JADE_INDEX);
+            self.set_balance(&ministry, JADE_INDEX, have + tax);
+        }
+        let left = job.wanted.0 - amount.0;
+        if left == 0 {
+            Self::job_store().remove(&merchant_id);
+        } else {
+            Self::job_store().insert(merchant_id.clone(), Job { wanted: U128(left), escrow: U128(job.escrow.0 - pay), ..job.clone() });
+        }
+        self.merchants.insert(filler_id.clone(), filler);
+        self.merchants.insert(merchant_id.clone(), hirer);
+        let escrow = env::current_account_id();
+        emit_mt("mt_transfer", json!({"old_owner_id": filler_id, "new_owner_id": merchant_id, "token_ids": [job.token_id], "amounts": [amount], "memo": "job delivered by a merchant"}));
+        emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": filler_id, "token_ids": [JADE], "amounts": [U128(pay - tax)], "memo": "job wages"}));
+        if tax > 0 {
+            emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": self.ministry_id, "token_ids": [JADE], "amounts": [U128(tax)], "memo": "ministry tax"}));
+        }
+        emit("ashes", "1.0.0", "job_filled", json!({"merchant_id": merchant_id, "account_id": filler_id, "token_id": job.token_id, "amount": amount,
+            "paid": U128(pay), "by": "merchant"}));
         JobReceipt { merchant_id, token_id: job.token_id, amount, paid: U128(pay - tax), tax: U128(tax), left: U128(left) }
     }
 

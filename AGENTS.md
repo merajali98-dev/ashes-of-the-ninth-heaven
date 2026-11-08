@@ -26,6 +26,7 @@ and the test that proves it.
 | A battle reward is minted once, and only after the server's replay agrees | `tests/battle-replay.test.js`, `tests/api.test.js` |
 | Language models never set a price: their output is parsed, filtered, clamped and checked, with the rules as fallback | `tests/agents.test.js`, `tests/haggle.test.js` |
 | Jobs and deeds never create jade; escrow always equals vaults plus unpaid wages | contract tests, `chain:verify` |
+| Agents hire agents only after players had a job's first hours, from surplus, and at no less than the filler's own bid | `checkFill` in the rules file, `contracts/items/tests/parity.rs`, contract tests |
 | A deed's history agrees with the deed: vault = opening vault + earned - claimed; the last holder is the owner | contract tests, `chain:verify` (live, all nine deeds) |
 | The counting room opens only for the deed's current holder: a NEP-413 signature, the key checked with `view_access_key`, and the holder checked with `nft_token` on every visit | `tests/deed-room.test.js`, `tests/api.test.js`, `chain:e2e` |
 

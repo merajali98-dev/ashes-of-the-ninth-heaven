@@ -59,6 +59,7 @@ export function renderRules() {
     `pub const JOB_MAX_UNITS: i128 = ${int(R.JOBS.maxUnits)};`,
     `pub const JOB_MAX_ESCROW_BPS: i128 = ${int(R.JOBS.maxEscrowBps)};`,
     `pub const JOB_TTL_TICKS: u64 = ${int(R.JOBS.ttlTicks)};`,
+    `pub const JOB_PLAYERS_FIRST_TICKS: u64 = ${int(R.JOBS.playersFirstTicks)};`,
     `pub const MERCHANTS: [MerchantDef; ${R.MERCHANTS.length}] = [`,
     ...R.MERCHANTS.map(m => {
       const x = t(m.id);

@@ -892,3 +892,72 @@ fn the_history_keeps_its_newest_events_and_never_loses_its_totals() {
     assert_eq!(n(&events.last().unwrap()["amount"]), 1_000 + DEED_EVENTS_KEPT as u128 + 9);
     assert_eq!(h["sales"], 1);
 }
+
+// ---------------------------------------------------------------------- merchants hiring merchants
+
+fn granny() -> AccountId {
+    acc("m-granny-qiu.test")
+}
+/// Lu Yan is short of Cinder Essence and posts a job; Granny Qiu (who trades it on the side) has bought 40 too many.
+fn granny_has_surplus(surplus: bool) -> (Contract, u128) {
+    let mut c = lu_short();
+    at("owner.test", 0, 0);
+    c.add_merchant(granny(), "granny-qiu".into());
+    if surplus {
+        at("alice.test", 0, 0);
+        c.market_sell(granny(), ember(), U128(40), U128(0));
+    }
+    let pay = lu_posts_a_job(&mut c, 10);
+    (c, pay)
+}
+
+#[test]
+fn a_merchant_fills_another_merchants_job_from_its_surplus() {
+    let (mut c, pay) = granny_has_surplus(true);
+    at("anyone.test", JOB_PLAYERS_FIRST_TICKS * TICK, 0);
+    c.market_advance(vec![lu(), granny()]); // both shops caught up first, so the deltas below are the fill alone
+    let supply = c.mt_supply(JADE.into()).unwrap().0;
+    let (lu_held, granny_held, granny_purse) = (bal(&c, "m-lu-yan.test", &ember()), bal(&c, "m-granny-qiu.test", &ember()), bal(&c, "m-granny-qiu.test", JADE));
+    at("m-granny-qiu.test", JOB_PLAYERS_FIRST_TICKS * TICK, 0);
+    let r = c.merchant_fill_job(lu(), U128(10));
+    assert_eq!(r.paid.0 + r.tax.0, 10 * pay);
+    assert_eq!(bal(&c, "m-granny-qiu.test", &ember()), granny_held - 10);
+    assert_eq!(bal(&c, "m-lu-yan.test", &ember()), lu_held + 10);
+    assert_eq!(bal(&c, "m-granny-qiu.test", JADE), granny_purse + r.paid.0, "the wage, less the Ministry's tax");
+    assert_eq!(bal(&c, "items.test", JADE), 0, "the escrow is spent");
+    assert!(c.jobs().is_empty());
+    assert_eq!(c.mt_supply(JADE.into()).unwrap().0, supply, "agents hiring agents move jade; they never make it");
+    assert!(get_logs().iter().any(|l| l.contains("job_filled") && l.contains("\"by\":\"merchant\"")));
+}
+
+#[test]
+#[should_panic(expected = "PLAYERS_FIRST")]
+fn players_have_a_job_to_themselves_for_its_first_hours() {
+    let (mut c, _) = granny_has_surplus(true);
+    at("m-granny-qiu.test", (JOB_PLAYERS_FIRST_TICKS - 1) * TICK, 0);
+    c.merchant_fill_job(lu(), U128(10));
+}
+
+#[test]
+#[should_panic(expected = "NOT_SURPLUS")]
+fn a_merchant_never_fills_a_job_below_its_own_target() {
+    let (mut c, _) = granny_has_surplus(false);
+    at("m-granny-qiu.test", JOB_PLAYERS_FIRST_TICKS * TICK, 0);
+    c.merchant_fill_job(lu(), U128(10));
+}
+
+#[test]
+#[should_panic(expected = "only a merchant fills jobs this way")]
+fn players_fill_jobs_with_job_fill_not_as_merchants() {
+    let (mut c, _) = granny_has_surplus(true);
+    at("alice.test", JOB_PLAYERS_FIRST_TICKS * TICK, 0);
+    c.merchant_fill_job(lu(), U128(10));
+}
+
+#[test]
+#[should_panic(expected = "a merchant cannot fill its own job")]
+fn a_merchant_cannot_fill_its_own_job() {
+    let (mut c, _) = granny_has_surplus(true);
+    at("m-lu-yan.test", JOB_PLAYERS_FIRST_TICKS * TICK, 0);
+    c.merchant_fill_job(lu(), U128(10));
+}

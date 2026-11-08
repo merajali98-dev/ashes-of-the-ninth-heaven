@@ -39,6 +39,7 @@ export async function refresh() {
     ledger.jobs = data.jobs ?? [];
     ledger.haggles = data.haggles ?? [];
     ledger.talk = data.talk ?? [];
+    ledger.hires = data.hires ?? [];
     ledger.contract = data.contract;
     if (data.balances) ledger.balances = data.balances;
     ledger.active = Boolean(data.balances && data.contract);

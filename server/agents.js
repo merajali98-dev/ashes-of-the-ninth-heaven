@@ -10,8 +10,10 @@
 //
 // The same agents also hire: a merchant short of a good may post one paid job (merchant_post_job), its wage held in
 // escrow by the contract; the rules pick the good and pay, the model may choose among the rules' options, and the
-// contract checks the terms again (checkJob in the rules file). And they haggle: the contract decides every haggle by
-// the rules file; NEAR AI only gives the merchant's answer a voice, and must state the decided price exactly.
+// contract checks the terms again (checkJob in the rules file). When players leave a job alone for its first hours,
+// another merchant with surplus fills it (merchant_fill_job): agent hires agent, wages from escrow, a receipt for both.
+// And they haggle: the contract decides every haggle by the rules file; NEAR AI only gives the merchant's answer a
+// voice, and must state the decided price exactly.
 import * as R from '../js/market/merchant-rules.js';
 import {MARKET_TOKENS} from '../js/market/tokens.js';
 import {characters, schools} from '../js/content.js';
@@ -136,6 +138,35 @@ export async function aiDecision(books, tick, rules, {fetchImpl = fetch, apiKey 
   } catch { return rules; }
 }
 
+/** The best merchant-to-merchant delivery the rules allow right now, or null. Jobs players have left alone for their
+ *  first hours (JOBS.playersFirstTicks) go to the merchant with the most surplus of the good, if `checkFill` allows it:
+ *  it keeps its own target and is paid at least its own bid. Shops whose deed holder decides are left alone. */
+export function fillOffer(market) {
+  const offers = [];
+  const holderDecides = id => (market.deeds ?? []).some(d => d.merchant_id === id && !d.held_by_ministry && !d.agent);
+  for (const job of market.jobs ?? []) {
+    if (job.expired || market.tick < Number(job.posted_tick) + R.JOBS.playersFirstTicks) continue;
+    const token = MARKET_TOKENS[job.token_id];
+    for (const books of market.merchants) {
+      const def = R.MERCHANTS.find(m => m.id === books.rules_id), good = books.goods.find(g => g.token_id === job.token_id);
+      if (!def || !token || !good || books.account_id === job.merchant_id || books.closed || holderDecides(books.account_id)) continue;
+      const stock = Number(good.stock), target = Number(good.target), payEach = Number(job.pay_each);
+      const {bid} = R.quote({merchant: def, state: stateOf(books), token, side: 'sell', qty: 1, tick: market.tick, testimonyBps: market.testimonyBps ?? 0});
+      const units = Math.min(Number(job.wanted), stock - target);
+      if (R.checkFill({stock, target, bid, closed: books.closed}, {units, payEach}) !== 'OK') continue;
+      offers.push({job, filler: books, units, payEach, surplus: stock - target, bid});
+    }
+  }
+  return offers.sort((a, b) => b.surplus - a.surplus)[0] ?? null;
+}
+
+/** The two merchants' words for a delivery between them (the rules' words; the numbers are the ledger's). */
+export function fillLines(offer, hirerName) {
+  const good = name(offer.job.token_id), pay = R.jade(offer.payEach);
+  return {filler: `${hirerName} was short of ${good} and nobody came, so I filled the job: ${offer.units} from my spare stock at ${pay} jade each.`,
+    hirer: `${offer.filler.name} brought me ${offer.units} ${good} at the wage I posted, ${pay} jade each.`};
+}
+
 /** A merchant whose purse is under 40% of its start does not ask for more stock or hire: that is how idle shops go broke. */
 export function thrifty(books, decision) {
   const def = R.MERCHANTS.find(m => m.id === books.rules_id);
@@ -190,6 +221,18 @@ export function createAgents({store, chain, decide = aiDecision, every = 60_000,
         data.journal ??= {};
         data.journal[books.rules_id] = [entry, ...(data.journal[books.rules_id] ?? [])].slice(0, 12);
         store.save();
+      }
+      // Agents hiring agents: at most one delivery per round, from the merchant with the most to spare.
+      const offer = fillOffer(market);
+      if (offer) {
+        const hirer = market.merchants.find(m => m.account_id === offer.job.merchant_id);
+        const result = await chain.agentCall(offer.filler.account_id, 'merchant_fill_job', {merchant_id: offer.job.merchant_id, amount: String(offer.units)});
+        const words = fillLines(offer, hirer?.name ?? 'A merchant');
+        data.hires = [{at: Date.now(), day, hirer: hirer?.rules_id ?? null, hirerName: hirer?.name ?? null, filler: offer.filler.rules_id, fillerName: offer.filler.name,
+          token_id: offer.job.token_id, name: name(offer.job.token_id), units: offer.units, payEach: offer.payEach, tx: result.tx ?? null, ok: Boolean(result.ok),
+          code: result.ok ? null : result.code, said: words}, ...(data.hires ?? [])].slice(0, 30);
+        store.save();
+        chain.forgetBooks();
       }
       if (due.length) chain.forgetBooks();
     } catch (error) {

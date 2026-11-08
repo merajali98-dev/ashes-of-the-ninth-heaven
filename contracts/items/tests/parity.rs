@@ -134,5 +134,11 @@ fn the_contract_haggles_and_checks_jobs_exactly_like_the_rules_file() {
             cash: int(&c["cash"]), open: c["open"].as_bool().unwrap() };
         assert_eq!(pricing::check_job(def, &books, int(&c["units"]), int(&c["payEach"])), c["code"].as_str().unwrap(), "{c}");
     }
-    assert!(haggles.len() > 3_000 && jobs.len() > 1_000);
+    let fills = cases["fills"].as_array().unwrap();
+    for c in fills {
+        let code = pricing::check_fill(int(&c["stock"]), int(&c["target"]), int(&c["bid"]), c["closed"].as_bool().unwrap(), int(&c["units"]),
+            int(&c["payEach"]));
+        assert_eq!(code, c["code"].as_str().unwrap(), "{c}");
+    }
+    assert!(haggles.len() > 3_000 && jobs.len() > 1_000 && fills.len() > 500);
 }

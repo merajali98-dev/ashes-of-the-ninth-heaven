@@ -53,6 +53,7 @@ pub const HAGGLE_WALK_AWAY_BPS: i128 = 20000;
 pub const JOB_MAX_UNITS: i128 = 20;
 pub const JOB_MAX_ESCROW_BPS: i128 = 1000;
 pub const JOB_TTL_TICKS: u64 = 24;
+pub const JOB_PLAYERS_FIRST_TICKS: u64 = 6;
 pub const MERCHANTS: [MerchantDef; 9] = [
     MerchantDef { id: "granny-qiu", name: "Granny Qiu", start_cash: 400000, consumables: false,
         temperament: Temperament { k_quarters: 3, spread_bps: 2500, flow_weight_bps: 2000, flow_fade_bps: 800, reversion_bps: 300, loyalty_bps: 5000, haggle_bps: 300 },
