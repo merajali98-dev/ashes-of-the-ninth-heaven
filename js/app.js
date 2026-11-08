@@ -138,6 +138,7 @@ function render({focus = false, preserve = true} = {}) {
   if(page==='pets')petViews.bindPetMapControls(root);
   const hand = main.querySelector('.duel-hand');
   if (hand) hand.scrollLeft = handScroll;
+  if (page === 'market-sim') beatInView();
   document.title = (page === 'home' ? '' : (views.NAV.find(entry => entry[0] === page)?.[2] || (page==='market-sim'?'Fast-forward':'Encounter')) + ' · ') + 'Ashes of the Ninth Heaven';
   if (focus) main.focus({preventScroll:true});
   else if (preserve && key && !dialog.open) {
@@ -517,6 +518,10 @@ function activate(action,id = '') {
       render();break;
     case 'sim-speed':ui.simSpeed=[1,2,4].includes(Number(id))?Number(id):1;if(ui.simPlaying)startSim();render();break;
     case 'sim-table':ui.simTable=!ui.simTable;render();break;
+    case 'sim-jump': { // a turning point of the week: pause there
+      const frames=simulation().frames,at=frames.findIndex(f=>f.tick>=Number(id));
+      ui.simFrame=at<0?frames.length-1:at;ui.simPlaying=false;stopSim();render();break;
+    }
     case 'sim-shock': {
       const tick=simulation().frames[ui.simFrame||0].tick;
       simParams={...simParams,shocks:[...(simParams.shocks||[]),{id,tick}]};rerunSim(true);render();
@@ -877,10 +882,16 @@ function rerunSim(keepFrame=false) {
   simResult=runFastForward(simParams);
   ui.simFrame=keepFrame?Math.min(frame,simResult.frames.length-1):0;
 }
+// On a narrow screen the week's turning points scroll sideways: keep the latest one reached in view.
+function beatInView() {
+  const strip=root.querySelector('.sim-beats'),lit=[...(strip?.querySelectorAll('li.lit')??[])].at(-1);
+  if(strip&&strip.scrollWidth>strip.clientWidth)strip.scrollLeft=lit?Math.max(0,lit.offsetLeft-strip.offsetLeft-strip.clientWidth/3):0;
+}
 function updateSimStage() {
   const stage=root.querySelector('#sim-stage');
   if(!stage||!simResult)return;
   stage.innerHTML=marketViews.simStage(simResult,ui);
+  beatInView();
   const scrub=root.querySelector('[data-sim-scrub]');
   if(scrub&&document.activeElement!==scrub)scrub.value=ui.simFrame||0;
 }

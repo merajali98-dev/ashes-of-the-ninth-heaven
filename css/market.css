@@ -224,3 +224,14 @@
 
 /* Google's sign-in button is an iframe: with a dark page it gets an opaque white box unless its holder is light. */
 #seal-google{color-scheme:light}
+
+/* The fast-forward week's turning points: lit as playback passes them; each jumps to its market hour. */
+.sim-beats{display:flex;gap:6px;list-style:none;margin:0 0 10px;padding:0 0 4px;overflow-x:auto;scrollbar-width:thin}
+.sim-beats li{flex:1 0 132px;max-width:200px}
+.sim-beats button{width:100%;height:100%;text-align:left;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02);color:var(--muted);font:inherit;cursor:pointer;display:flex;flex-direction:column;gap:2px;opacity:.55;transition:opacity .3s,border-color .3s}
+.sim-beats small{font-size:.72rem;letter-spacing:.04em}
+.sim-beats span{font-size:.86rem;line-height:1.25}
+.sim-beats li.lit button{opacity:1;color:var(--text);border-color:var(--gold)}
+.sim-beats li.lit.beat-closed button{border-color:#e07a6a}
+.sim-beats li.lit.beat-reopened button,.sim-beats li.lit.beat-rekindle button{border-color:#7fc98a}
+.sim-beats button:hover,.sim-beats button:focus-visible{opacity:1}

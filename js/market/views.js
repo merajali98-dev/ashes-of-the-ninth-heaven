@@ -7,6 +7,7 @@ import {state as sealState} from '../online/session.js';
 import {CAST} from './npc.js';
 import {SHOCKS} from './engine.js';
 import {FAMILIES} from './fastforward.js';
+import {storyBeats} from './story.js';
 import {characters, items, schools} from '../content.js';
 import {materialById} from '../economy.js';
 import {itemIcon} from '../item-art.js';
@@ -172,6 +173,16 @@ function lineChart({series, frame, min, max, height = 190, baseline = null, mark
 const rangeOf = (series, baseline) => { const [min, max] = fitRange(series, baseline); return {min, max}; };
 const legend = (series, frame) => `<ul class="sim-legend">${series.map(s => `<li><i style="background:${s.color}"></i>${esc(s.label)} <b>${s.format(s.values[frame])}</b></li>`).join('')}</ul>`;
 
+// The week's turning points, worked out once per simulation (the stage redraws every market hour of playback).
+const beatsOf = new WeakMap();
+function storyStrip(sim, tick) {
+  if (!beatsOf.has(sim)) beatsOf.set(sim, storyBeats(sim, {family: f => FAMILY_LABEL[f] ?? f, merchant: id => sim.world.merchants[id]?.name ?? id}));
+  const beats = beatsOf.get(sim);
+  if (!beats.length) return '';
+  return `<ol class="sim-beats" aria-label="The week's turning points">${beats.map(b => `<li class="beat-${b.kind} ${b.tick <= tick ? 'lit' : ''}">
+    <button type="button" data-action="sim-jump" data-id="${b.tick}" title="${esc(b.text)}"><small>Day ${Math.floor(b.tick / 24) + 1}, ${String(b.tick % 24).padStart(2, '0')}:00</small><span>${esc(b.title)}</span></button></li>`).join('')}</ol>`;
+}
+
 export function simStage(sim, ui) {
   const frame = Math.min(ui.simFrame ?? 0, sim.frames.length - 1), f = sim.frames[frame];
   const families = FAMILIES.map(fam => ({label: FAMILY_LABEL[fam], color: FAMILY_COLOR[fam], values: sim.frames.map(x => x.families[fam]), format: v => pct(v)}));
@@ -186,7 +197,7 @@ export function simStage(sim, ui) {
     ${sim.frames.filter((_, i) => i % 24 === 23 && i <= frame).map(x => `<tr><th scope="row">${x.day}</th>${FAMILIES.map(fam => `<td>${pct(x.families[fam])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '';
   const story = events.filter(e => ['closed', 'reopened', 'rekindle', 'shock', 'event'].includes(e.type)).at(-1);
   const caption = story ? `<p class="sim-story"><b>Day ${Math.floor(story.tick / 24) + 1}, ${String(story.tick % 24).padStart(2, '0')}:00</b> ${esc(story.text)}</p>` : '';
-  return `${caption}<div class="sim-clock"><b>Day ${f.day}, ${String(f.hour).padStart(2, '0')}:00</b><span>Pagoda Edict: ${esc(schoolName[f.edict])}</span>${f.event ? `<span>${esc(R.EVENTS.list.find(e => e.id === f.event).text)}</span>` : ''}${f.closed.length ? `<span class="sim-closed">${icon('lock')} Shuttered: ${f.closed.map(id => esc(sim.world.merchants[id].name)).join(', ')}</span>` : ''}</div>
+  return `${storyStrip(sim, f.tick)}${caption}<div class="sim-clock"><b>Day ${f.day}, ${String(f.hour).padStart(2, '0')}:00</b><span>Pagoda Edict: ${esc(schoolName[f.edict])}</span>${f.event ? `<span>${esc(R.EVENTS.list.find(e => e.id === f.event).text)}</span>` : ''}${f.closed.length ? `<span class="sim-closed">${icon('lock')} Shuttered: ${f.closed.map(id => esc(sim.world.merchants[id].name)).join(', ')}</span>` : ''}</div>
     <div class="sim-grid"><figure class="sim-figure"><figcaption>Material prices against their usual price</figcaption>${lineChart({series: families, frame, ...rangeOf(families, 10_000), baseline: 10_000, label: 'Price index by material family over the week'})}${legend(families, frame)}</figure>
       <figure class="sim-figure"><figcaption>Merchant purses, as a share of their usual purse (✕ shuttered, ✓ reopened)</figcaption>${lineChart({series: purses, frame, ...rangeOf(purses, 100), baseline: 100, marks, label: 'Merchant purses over the week'})}${legend(purses, frame)}</figure>
       <section class="sim-feed"><div class="eyebrow">What happened</div>${newsFeed(events, true, 12)}</section></div>${table}

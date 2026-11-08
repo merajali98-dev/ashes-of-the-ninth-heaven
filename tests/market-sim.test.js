@@ -126,3 +126,18 @@ test('fast-forward and the live market share one engine and one rules file', asy
   }
   assert.equal(JADE, 'jade');
 });
+
+test('the flood week tells its story: the flood, the crash, the closure, the rescue, in order', async () => {
+  const {storyBeats} = await import('../js/market/story.js');
+  const sim = runFastForward({cast: {flooder: true}});
+  const beats = storyBeats(sim, {family: f => f, merchant: id => sim.world.merchants[id].name});
+  const kinds = beats.map(b => b.kind);
+  assert.ok(beats.length <= 8);
+  assert.deepEqual(beats.map(b => b.tick), [...beats.map(b => b.tick)].sort((a, b) => a - b), 'in time order');
+  for (const kind of ['flood', 'low', 'closed', 'rekindle', 'reopened']) assert.ok(kinds.includes(kind), kind);
+  assert.ok(kinds.indexOf('flood') < kinds.indexOf('low') && kinds.indexOf('closed') < kinds.indexOf('rekindle')
+    && kinds.indexOf('rekindle') < kinds.indexOf('reopened'), kinds.join(' → '));
+  assert.match(beats.find(b => b.kind === 'low').text, /essence-ember falls to \d+% of its usual price/);
+  const quiet = storyBeats(runFastForward({cast: {flooder: false}}), {family: f => f, merchant: id => id});
+  assert.ok(!quiet.some(b => b.kind === 'flood' || b.kind === 'closed'), 'no flood, no closure');
+});
