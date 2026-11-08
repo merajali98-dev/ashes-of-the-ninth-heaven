@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
+    "verify": "node scripts/verify.mjs",
     "test:browser": "node tests/browser-regression.mjs",
     "test:performance": "node tests/performance-browser.mjs",
     "contract:build": "node scripts/contract-build.mjs",
@@ -14,6 +15,7 @@
     "chain:smoke": "node scripts/chain-smoke.mjs",
     "market:trace": "node scripts/gen-market-trace.mjs",
     "chain:e2e": "node scripts/chain-e2e.mjs",
+    "chain:verify": "node scripts/chain-verify.mjs",
     "deploy": "node scripts/deploy-vm.mjs"
   },
   "engines": {

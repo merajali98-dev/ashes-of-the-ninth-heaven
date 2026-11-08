@@ -61,6 +61,8 @@ export async function exists(accountId) {
 export async function view(methodName, args = {}, contractId = CONTRACT) {
   return read(p => p.callFunction({contractId, method: methodName, args}));
 }
+/** A raw RPC query (view_account, view_access_key_list, …) with the same retries. */
+export const query = request => read(p => p.query({finality: 'final', ...request}));
 export const newKeyPair = () => KeyPair.fromRandom('ed25519');
 
 // Merchant agent keys (function-call only: merchant_set_strategy), kept apart from full keys.

@@ -1,7 +1,8 @@
 // Live testnet check of the whole online path, through the game's own HTTP API, exactly as the browser does it:
 //   guest sign-in → device key made with WebCrypto → ledger seal (a new account) → welcome grant from the minter →
 //   a sale to Lu Yan signed in "the browser" and relayed by the server → the jade lands. Then a forbidden method is
-//   refused by the relayer. Creates one new testnet account per run (0.01 NEAR from the parent).
+//   refused by the relayer; a haggle with Lu Yan and her counter taken; a commission replayed before its reward.
+//   Creates one new testnet account per run (0.01 NEAR from the parent).
 // Run: npm run chain:e2e
 import {once} from 'node:events';
 import {tmpdir} from 'node:os';
@@ -63,6 +64,31 @@ try {
   const refused = await api('POST', '/api/seal/relay', await signDelegate(device, bad)).then(() => false, error => /NOT_ALLOWED/.test(error.message));
   console.log(`  relayer refused mt_transfer: ${refused}`);
   if (!refused) throw new Error('The relayer accepted a method outside the market');
+
+  // Haggling: ask 1.5 times the room the rules give Lu Yan, so she counters (the ledger decides; the merchant speaks),
+  // then take the counter. The jade received must be exactly the counter.
+  const R = await import('../js/market/merchant-rules.js');
+  const call = async (methodName, args) => {
+    const n = await api('GET', '/api/seal/next?key=' + encodeURIComponent(publicKey));
+    return api('POST', '/api/seal/relay', await signDelegate(device, {senderId: accountId, receiverId: CONTRACT, publicKey, nonce: BigInt(n.nonce),
+      maxBlockHeight: BigInt(n.maxBlockHeight), actions: [{methodName, args, gas: 100_000_000_000_000n, deposit: 0n}]}));
+  };
+  const books = await view('market_merchant', {merchant_id: MERCHANT});
+  const good = books.goods.find(g => g.token_id === TOKEN), helps = Number(good.stock) < Number(good.target);
+  const posted = Number((await view('market_quote', {merchant_id: MERCHANT, token_id: TOKEN, side: 'sell', amount: '3', account_id: accountId})).total);
+  const lu = R.MERCHANTS.find(m => m.id === 'lu-yan');
+  const room = Math.trunc(posted * (R.temperamentOf(lu).haggleBps + (helps ? R.HAGGLE.needBps : 0)) / R.BPS);
+  const haggled = await call('market_haggle', {merchant_id: MERCHANT, token_id: TOKEN, amount: '3', sell: true, offer: String(posted + Math.max(1, Math.trunc(room * 3 / 2)))});
+  if (!haggled.ok) throw new Error('Haggle failed: ' + haggled.code);
+  console.log(`+ haggled: posted ${haggled.receipt.posted}, offered ${haggled.receipt.offer} → ${haggled.receipt.outcome} at ${haggled.receipt.price} (${haggled.voice}): "${haggled.say}"`);
+  if (haggled.receipt.outcome === 'countered') {
+    const jadeBefore = await balance(accountId, 'jade');
+    const taken = await call('market_take_counter', {merchant_id: MERCHANT});
+    if (!taken.ok) throw new Error('Taking the counter failed: ' + taken.code);
+    const got = (await balance(accountId, 'jade')) - jadeBefore;
+    console.log(`+ took the counter: received ${got} jade cents`);
+    if (got !== BigInt(taken.receipt.total)) throw new Error('The counter paid a different amount');
+  }
 
   // Proof of battle: the server deals a seed, the commission is fought with the game's own rules, the server replays it
   // and only then the minter grants the rewards.
