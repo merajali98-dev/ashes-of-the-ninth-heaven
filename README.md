@@ -7,7 +7,10 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
 
 - **Play:** https://ashes-ninth.duckdns.org (NEAR testnet)
 - **Judge's Desk:** https://ashes-ninth.duckdns.org/judge. One click makes a throwaway testnet account; each button sends a
-  real transaction (trade, haggle, deliver a job, buy a Shop Deed, a forbidden move) and links to it on the explorer.
+  real transaction (trade, haggle, deliver a job, buy a Shop Deed and open its counting room, a forbidden move) and links
+  to it on the explorer.
+- **Deed Registry:** https://ashes-ninth.duckdns.org/deed/lu-yan. Each Shop Deed's history (every holder, what the shop
+  paid them, claims, sales) and its counting room, which only the current holder can open.
 - **Contract:** [`items.ashes-ninth.testnet`](https://testnet.nearblocks.io/address/items.ashes-ninth.testnet) ·
   merchants `m-<name>.ashes-ninth.testnet`
 - **Tracks:** Games (primary) · NFTs (Shop Deeds) · AI agents (merchants that decide, hire and haggle) · Open
@@ -20,20 +23,20 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
 
 | Command | What it proves | Needs |
 |---|---|---|
-| `npm install && npm run verify` | Everything offline: 212 node tests (rules, parity fixtures, generated contract inputs, the committed wasm checksum, the API and relayer checks, battle replay, agents) and 51 contract tests plus the JS↔Rust parity replays | Node 22+; Rust for the contract tests (skipped with a note otherwise) |
-| `npm run chain:verify` | Read-only, against the live contract: it runs the committed wasm; 40+ live quotes match the rules file exactly; escrow balances (deed vaults + job wages); 9 deeds; every agent key is limited to its two methods | Node, internet. No keys, no transactions |
-| `ASHES_BASE=https://ashes-ninth.duckdns.org npm run chain:e2e` | The whole online path through the hosted API: guest sign-in → device key → new account → welcome grant → relayed sale at the exact quote → a forbidden method refused → a haggle countered in character and taken → a commission replayed before its reward, and not paid twice | Node, internet. Creates one testnet account |
+| `npm install && npm run verify` | Everything offline: 220 node tests (rules, parity fixtures, generated contract inputs, the committed wasm checksum, the API and relayer checks, the counting room's gate, battle replay, agents) and 57 contract tests plus the JS↔Rust parity replays | Node 22+; Rust for the contract tests (skipped with a note otherwise) |
+| `npm run chain:verify` | Read-only, against the live contract: it runs the committed wasm; 40+ live quotes match the rules file exactly; escrow balances (deed vaults + job wages); 9 deeds, each agreeing with its history (vault = opening + earned − claimed); every agent key is limited to its two methods | Node, internet. No keys, no transactions |
+| `ASHES_BASE=https://ashes-ninth.duckdns.org npm run chain:e2e` | The whole online path through the hosted API: guest sign-in → device key → new account → welcome grant → relayed sale at the exact quote → a forbidden method refused → a haggle countered in character and taken → a Shop Deed bought and its counting room opened, another deed's room refused → a commission replayed before its reward, and not paid twice | Node, internet. Creates one testnet account |
 
 ## The brief, requirement by requirement
 
 | Requirement | Where it lives | Proof |
 |---|---|---|
-| **Items as NEP-245 tokens in one contract** | `contracts/items/src/lib.rs`: jade and all 873 goods are token ids; standard `mt_*` methods and `nep245` events; merchants hold real balances | `npm run contract:test` (51 tests) · `chain:verify` |
+| **Items as NEP-245 tokens in one contract** | `contracts/items/src/lib.rs`: jade and all 873 goods are token ids; standard `mt_*` methods and `nep245` events; merchants hold real balances | `npm run contract:test` (57 tests) · `chain:verify` |
 | **Social or email login; no seed phrases, wallet pop-ups or gas prompts** | Google (ID token verified server-side, `server/google.js`), a 6-digit code or one-time link sent by email (`server/smtp.js`, `server/mail.js`), or guest. The server creates `<name>.ashes-ninth.testnet`; the browser makes a non-extractable WebCrypto key (`js/online/signer.js`) that can only call the game's market methods. Trades are NEP-366 delegate actions; the relayer pays the gas | `tests/api.test.js`, `tests/online-signer.test.js`, `tests/no-chain-words.test.js` (no chain words reach a player) · `chain:e2e` |
 | **One readable pricing rules file, and a tooltip with the merchant's reasoning** | [`js/market/merchant-rules.js`](js/market/merchant-rules.js) (pure, integer-only, under 340 lines). Generated into Rust (`rules_gen.rs`); every price tooltip is `explain()` from the same file | `tests/market-trace.test.js` + `contracts/items/tests/parity.rs` (a recorded market week: 3,218 steps; plus 6,354 haggle and job cases) · `chain:verify` live parity |
 | **Fast-forward: a week in a minute** | [`/#market-sim`](https://ashes-ninth.duckdns.org/#market-sim): simulated traders play the same rules for 7 days in about a minute, with flood and audit scenarios; clearly labelled as a simulation | `tests/market-sim.test.js` |
 | **The game loop designed on paper** | [`docs/game-loop.md`](docs/game-loop.md): the 30-second, 5-minute and session loops, written before the market code | |
-| **NFTs** | **Shop Deeds** (NEP-171): one per merchant. The holder takes 10% of each profitable day into the deed's vault (which moves with the deed) and runs the shop or appoints its agent. The picture is drawn live from the ledger | [`docs/shop-deeds.md`](docs/shop-deeds.md): spec and threat model mapped to 7 contract tests |
+| **NFTs** | **Shop Deeds** (NEP-171): one per merchant. The holder takes 10% of each profitable day into the deed's vault (which moves with the deed) and runs the shop or appoints its agent. The picture is drawn live from the ledger. **History:** the contract keeps each deed's record (every holder and how they got it, what the deed earned and paid out while they held it, each profitable day, each sale and claim) at [`/deed/<merchant>`](https://ashes-ninth.duckdns.org/deed/lu-yan). **Gated page:** the deed's counting room opens only for its current holder: a NEP-413 signed message, with the signing key and the holder both checked on the ledger, and checked again on every visit | [`docs/shop-deeds.md`](docs/shop-deeds.md): spec and threat model mapped to 13 contract tests, `tests/deed-room.test.js` (signatures cross-checked with near-api-js) · `chain:verify` · `chain:e2e` |
 | **AI agents** | Each merchant decides its strategy daily and hires players for its shortages, in character through NEAR AI, signed with its own key that can call only `merchant_set_strategy` and `merchant_post_job`. Players haggle: the contract decides by the rules file; the agent only speaks, and may not change the price | [`docs/agents.md`](docs/agents.md): spec and threat model mapped to 16 contract tests, a parity fixture and node tests |
 | **Rewards that cannot be faked** | Commissions: the server deals the seed, the browser records the actions, the server replays the battle with the game's own combat code before the minter mints the reward, once | `tests/battle-replay.test.js` · `chain:e2e` |
 
@@ -73,8 +76,22 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
 | `server/` | `api.js` (sign-in, seal, relay, ledger, battles), `chain/service.js` (relayer, minter queue), `agents.js` (merchant agents, haggle voice, Ministry relief) |
 | `js/online/` | Browser key, signing, session and the ledger mirror |
 | `judge.html`, `js/judge.js` | The Judge's Desk |
+| `deed.html`, `js/deed.js`, `server/room.js` | The Deed Registry: each deed's history and its holder-only counting room |
 | `docs/` | `game-loop.md`, `shop-deeds.md`, `agents.md`, `economy-design.md` and the game's design and QA notes |
 | `AGENTS.md` | A guide for AI reviewers and coding agents |
+
+## Built at the NEAR HACKATHON
+
+- **All code here was written during the hackathon, from 1 November 2026.** There is no earlier baseline.
+- **Libraries:** [`near-api-js`](https://github.com/near/near-api-js) (server, scripts and tests) and
+  [`near-sdk`](https://github.com/near/near-sdk-rs) 5 (the Rust contract). The browser game uses no framework and has no
+  build step. Playwright is optional and is used only by the browser test suites.
+- **Services:** NEAR AI Cloud (the merchants' words and choices), Google Identity Services (sign-in), Gmail SMTP (the
+  sign-in email), a Google Cloud VM with DuckDNS (hosting) and testnet.nearblocks.io (explorer links).
+- **Assets:** the illustrations were generated with ImageGen ([`docs/art-production.md`](docs/art-production.md)). The
+  sound design includes CC0 Kenney Foley ([`docs/audio-assets.md`](docs/audio-assets.md)).
+- **AI coding assistants:** Claude Code and Codex (with GPT-6 Astra) were used as coding assistants.
+- **License:** [MIT](LICENSE). Third-party audio keeps its own CC0 licence.
 
 ---
 

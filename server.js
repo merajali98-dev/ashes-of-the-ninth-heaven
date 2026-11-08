@@ -15,8 +15,9 @@ import { createAgents } from './server/agents.js';
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 4173);
 const localUrl = 'http://127.0.0.1:' + port;
-const publicFiles = new Set(['/index.html', '/favicon.svg', '/judge.html', '/privacy.html']);
+const publicFiles = new Set(['/index.html', '/favicon.svg', '/judge.html', '/privacy.html', '/deed.html']);
 const aliases = {'/judge': '/judge.html', '/privacy': '/privacy.html'};
+const DEED_PAGE = /^\/deed(?:\/[a-z][a-z-]{1,30})?\/?$/; // /deed/lu-yan: one deed's history and its counting room
 const publicDirs = ['/js/', '/css/', '/assets/'];
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -55,7 +56,7 @@ export const server = createServer(async (req, res) => {
       return;
     }
     const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    const url = path === '/' ? '/index.html' : aliases[path] ?? path;
+    const url = path === '/' ? '/index.html' : aliases[path] ?? (DEED_PAGE.test(path) ? '/deed.html' : path);
     const file = resolve(root, '.' + url);
     if ((!publicFiles.has(url) && !publicDirs.some(dir => url.startsWith(dir))) ||
         !file.startsWith(resolve(root) + sep) || url.split(/[\\/]/).includes('..')) {

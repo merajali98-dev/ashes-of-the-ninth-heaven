@@ -759,3 +759,136 @@ fn only_the_owner_grants_relief() {
     at("alice.test", 0, 0);
     c.ministry_rekindle(vec![lu()]);
 }
+
+// ---------------------------------------------------------------------- deed histories
+
+fn history(c: &Contract, token: &str) -> Value {
+    c.deed_history(token.into())["history"].clone()
+}
+fn n(v: &Value) -> u128 {
+    v.as_str().unwrap().parse().unwrap()
+}
+fn vault_of(c: &Contract, token: &str) -> u128 {
+    n(&c.deed_history(token.into())["deed"]["vault"])
+}
+/// alice buys Lu Yan's deed from the Ministry, then bob makes her day profitable.
+fn a_profitable_day(c: &mut Contract) {
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    at("bob.test", 10 * TICK, 0);
+    for _ in 0..10 {
+        c.market_buy(acc("m-lu-yan.test"), "mat:essence-ember-1".into(), U128(10), U128(400_000));
+    }
+    at("bob.test", 25 * TICK, 0);
+    c.market_advance(vec![acc("m-lu-yan.test")]);
+}
+
+#[test]
+fn a_deeds_history_starts_at_its_minting_with_the_ministry() {
+    let c = with_deeds();
+    let h = history(&c, "deed:lu-yan");
+    assert_eq!(h["holders"], 1);
+    assert_eq!(h["holdings"][0]["owner"], "ministry.test");
+    assert_eq!(h["holdings"][0]["how"], "minted");
+    assert_eq!(n(&h["earned"]), 0);
+}
+
+#[test]
+fn the_history_records_each_holder_how_they_got_it_and_what_it_earned_and_paid_them() {
+    let mut c = with_deeds();
+    a_profitable_day(&mut c);
+    let earned = vault_of(&c, "deed:lu-yan");
+    assert!(earned > 0);
+    // alice claims, lists, and bob buys it from her.
+    at("alice.test", 26 * TICK, 0);
+    assert_eq!(c.deed_claim("deed:lu-yan".into()).0, earned);
+    c.deed_list("deed:lu-yan".into(), Some(U128(30_000)));
+    at("bob.test", 27 * TICK, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(30_000));
+
+    let h = history(&c, "deed:lu-yan");
+    assert_eq!(h["holders"], 3);
+    assert_eq!(h["sales"], 2);
+    assert_eq!(n(&h["sold_for"]), DEED_PRICE + 30_000);
+    let holdings = h["holdings"].as_array().unwrap();
+    let who: Vec<_> = holdings.iter().map(|x| (x["owner"].as_str().unwrap(), x["how"].as_str().unwrap())).collect();
+    assert_eq!(who, vec![("ministry.test", "minted"), ("alice.test", "bought"), ("bob.test", "bought")]);
+    assert_eq!(n(&holdings[1]["earned"]), earned, "the share was earned while alice held it");
+    assert_eq!(n(&holdings[1]["claimed"]), earned);
+    assert_eq!(n(&holdings[2]["price"]), 30_000);
+    assert_eq!(n(&holdings[2]["earned"]), 0);
+    let days = h["days"].as_array().unwrap();
+    assert_eq!(days.len(), 1);
+    assert_eq!(days[0]["holder"], "alice.test");
+    assert_eq!(n(&days[0]["share"]), earned);
+    let kinds: Vec<_> = h["events"].as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap()).collect();
+    assert_eq!(kinds, vec!["bought", "claimed", "listed", "bought"]);
+    assert_eq!(h["events"][3]["note"], "alice.test", "a change of hands names the previous holder");
+}
+
+#[test]
+fn the_vault_always_equals_the_opening_vault_plus_earnings_minus_claims() {
+    let mut c = with_deeds();
+    a_profitable_day(&mut c);
+    for (who, ms) in [("bob.test", 50 * TICK), ("bob.test", 75 * TICK)] {
+        at(who, ms, 0);
+        for _ in 0..5 {
+            c.market_buy(acc("m-lu-yan.test"), "mat:essence-ember-1".into(), U128(5), U128(400_000));
+        }
+    }
+    at("alice.test", 80 * TICK, 0);
+    c.deed_claim("deed:lu-yan".into());
+    at("bob.test", 130 * TICK, 0);
+    c.market_advance(vec![acc("m-lu-yan.test")]);
+    let h = history(&c, "deed:lu-yan");
+    assert_eq!(n(&h["opening_vault"]) + n(&h["earned"]) - n(&h["claimed"]), vault_of(&c, "deed:lu-yan"));
+    let by_day: u128 = h["days"].as_array().unwrap().iter().map(|d| n(&d["share"])).sum();
+    assert_eq!(by_day, n(&h["earned"]), "every share is a day in the history");
+}
+
+#[test]
+fn days_earned_before_a_sale_belong_to_the_seller_even_if_nobody_looked() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    at("bob.test", 10 * TICK, 0);
+    for _ in 0..10 {
+        c.market_buy(acc("m-lu-yan.test"), "mat:essence-ember-1".into(), U128(10), U128(400_000));
+    }
+    // The day ends with nobody calling; the next call is the wallet transfer to bob.
+    at("alice.test", 30 * TICK, 1);
+    c.nft_transfer(acc("bob.test"), "deed:lu-yan".into(), None, None);
+    let h = history(&c, "deed:lu-yan");
+    assert!(n(&h["holdings"][1]["earned"]) > 0, "alice's day");
+    assert_eq!(n(&h["holdings"][2]["earned"]), 0);
+    assert_eq!(h["holdings"][2]["how"], "transferred");
+}
+
+#[test]
+fn holders_decisions_are_in_the_history() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    c.deed_appoint_agent("deed:lu-yan".into(), false);
+    c.deed_set_strategy("deed:lu-yan".into(), vec![], Some("ember".into()));
+    c.deed_appoint_agent("deed:lu-yan".into(), true);
+    let events = history(&c, "deed:lu-yan")["events"].clone();
+    let kinds: Vec<_> = events.as_array().unwrap().iter().map(|e| e["kind"].as_str().unwrap()).collect();
+    assert_eq!(kinds, vec!["bought", "took the decisions", "ran the shop", "appointed the agent"]);
+    assert_eq!(events[2]["note"], "ember");
+}
+
+#[test]
+fn the_history_keeps_its_newest_events_and_never_loses_its_totals() {
+    let mut c = with_deeds();
+    at("alice.test", 0, 0);
+    c.deed_buy("deed:lu-yan".into(), U128(DEED_PRICE));
+    for i in 0..(DEED_EVENTS_KEPT as u128 + 10) {
+        c.deed_list("deed:lu-yan".into(), Some(U128(1_000 + i)));
+    }
+    let h = history(&c, "deed:lu-yan");
+    let events = h["events"].as_array().unwrap();
+    assert_eq!(events.len(), DEED_EVENTS_KEPT);
+    assert_eq!(n(&events.last().unwrap()["amount"]), 1_000 + DEED_EVENTS_KEPT as u128 + 9);
+    assert_eq!(h["sales"], 1);
+}

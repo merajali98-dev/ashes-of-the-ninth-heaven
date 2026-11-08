@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as R from '../js/market/merchant-rules.js';
 import {MARKET_TOKENS} from '../js/market/tokens.js';
-import {aiDecision, createAgents, rulesDecision} from '../server/agents.js';
+import {aiDecision, createAgents, ownerLetter, rulesDecision} from '../server/agents.js';
 
 function books(id, tweak = {}) {
   const m = R.MERCHANTS.find(x => x.id === id), s = R.openingState(m, MARKET_TOKENS);
@@ -96,4 +96,22 @@ test('a shop left shuttered by players is rekindled by the Ministry, once, after
   assert.deepEqual(relief, [[all[0].account_id]]);
   assert.equal(store.data.journal[all[0].rules_id][0].source, 'ministry');
   assert.equal(store.data.journal[all[0].rules_id][0].tx, 'relief-tx');
+});
+
+test("the letter to a deed's holder states the ledger's figures, and a model's letter is used only if it states the vault exactly", async () => {
+  const b = {...books('lu-yan', {'mat:essence-ember-1': 1}), status: 'open'};
+  const deed = {owner_id: 'alice.ashes-ninth.testnet', vault: '1234', agent: true};
+  const history = {days: [{day: 3, share: '800', holder: 'alice.ashes-ninth.testnet'}, {day: 4, share: '434', holder: 'alice.ashes-ninth.testnet'},
+    {day: 1, share: '999', holder: 'someone-else.ashes-ninth.testnet'}]};
+  const rules = await ownerLetter(b, deed, history, 30, {apiKey: ''});
+  assert.equal(rules.source, 'rules');
+  assert.match(rules.say, /Your vault holds 12\.34 jade/);
+  assert.match(rules.say, /last 2 good days under your seal paid you 12\.34 jade/, "only this holder's days count");
+  assert.match(rules.say, /short of [^.]*Cinder/);
+  const reply = content => async () => ({ok: true, json: async () => ({choices: [{message: {content}}]})});
+  const voiced = await ownerLetter(b, deed, history, 30, {apiKey: 'k', fetchImpl: reply('Your vault holds 12.34 jade. Buy cinder cheap at dawn.')});
+  assert.equal(voiced.source, 'near-ai');
+  for (const bad of ['Your vault holds a fortune.', 'Your vault holds 12.34 jade; check your wallet.']) {
+    assert.equal((await ownerLetter(b, deed, history, 30, {apiKey: 'k', fetchImpl: reply(bad)})).source, 'rules', bad);
+  }
 });

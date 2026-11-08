@@ -91,7 +91,33 @@ async function act(kind) {
     const token = await api('/api/ledger').then(r => r.ledger.deeds.find(d => d.token_id === deed.token_id));
     log(true, `Bought <code>${esc(deed.token_id)}</code> for ${jade(deed.for_sale)} jade from ${esc(String(deed.owner_id).split('.')[0])}: it now belongs to ${accountLink(token.owner_id)}${txLink(bought.tx)}.
       Listed again at the same price so the next visitor can buy it${txLink(relisted.tx)}. Its picture is drawn live from the shop:
-      <a href="/deeds/${esc(deed.rules_id)}.svg" target="_blank" rel="noopener">/deeds/${esc(deed.rules_id)}.svg</a>. Spec and threat model: <code>docs/shop-deeds.md</code>.`);
+      <a href="/deeds/${esc(deed.rules_id)}.svg" target="_blank" rel="noopener">/deeds/${esc(deed.rules_id)}.svg</a>. Its history (every holder, what it earned and paid them):
+      <a href="/deed/${esc(deed.rules_id)}" target="_blank" rel="noopener">/deed/${esc(deed.rules_id)}</a>. Spec and threat model: <code>docs/shop-deeds.md</code>.`);
+    return;
+  }
+  if (kind === 'room') {
+    // The counting room: a NEP-413 message signed by this page's device key; the server checks the key and the holder on chain.
+    const me = session.state.user.seal.id, deeds = (await loadLedger()).deeds ?? [];
+    const mine = deeds.find(d => d.owner_id === me);
+    if (!mine) { log(false, 'This account holds no deed yet. Press “Buy a Shop Deed” first.'); return; }
+    const enter = async tokenId => {
+      const {challenge} = await api('/api/deeds/room/challenge', {method: 'POST', body: JSON.stringify({token_id: tokenId})});
+      const signed = await session.signChallenge(challenge);
+      return api('/api/deeds/room', {method: 'POST', body: JSON.stringify({token_id: tokenId, account_id: signed.accountId, public_key: signed.publicKey,
+        signature: signed.signature, nonce: challenge.nonce})});
+    };
+    const opened = await enter(mine.token_id);
+    log(true, `Opened the counting room of <code>${esc(mine.token_id)}</code>. This page signed a NEP-413 message (“${esc('Open the counting room of ' + mine.token_id)}”) with its device key;
+      the server checked that the key is an access key of ${accountLink(me)} (<code>view_access_key</code>) and that <code>nft_token</code> names this account as the holder.
+      Inside, the merchant's private letter to its owner (${opened.letter.voice === 'near-ai' ? 'NEAR AI, used only because it stated the vault exactly' : 'the rules’ words'}): “${esc(opened.letter.say)}”
+      <a href="/deed/${esc(mine.rules_id)}" target="_blank" rel="noopener">Open the room</a>.`);
+    const other = deeds.find(d => d.owner_id !== me);
+    try {
+      await enter(other.token_id);
+      log(false, `Entered the room of ${esc(other.token_id)}, which this account does not hold. That should not happen.`);
+    } catch (error) {
+      log(true, `Refused (<code>${esc(error.code)}</code>) at <code>${esc(other.token_id)}</code>: the same valid signature, but the ledger says ${accountLink(other.owner_id)} holds that deed. Selling a deed shuts its old holder out the same way, on their next visit.`);
+    }
     return;
   }
   if (kind === 'haggle') {

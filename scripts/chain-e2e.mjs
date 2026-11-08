@@ -1,7 +1,8 @@
 // Live testnet check of the whole online path, through the game's own HTTP API, exactly as the browser does it:
 //   guest sign-in → device key made with WebCrypto → ledger seal (a new account) → welcome grant from the minter →
 //   a sale to Lu Yan signed in "the browser" and relayed by the server → the jade lands. Then a forbidden method is
-//   refused by the relayer; a haggle with Lu Yan and her counter taken; a commission replayed before its reward.
+//   refused by the relayer; a haggle with Lu Yan and her counter taken; a Shop Deed bought, its counting room opened
+//   (and another deed's refused), the deed listed again; a commission replayed before its reward.
 //   Creates one new testnet account per run (0.01 NEAR from the parent).
 // Run: npm run chain:e2e
 import {once} from 'node:events';
@@ -18,7 +19,7 @@ if (!base) {
   if (!server.listening) await once(server, 'listening');
   base = `http://127.0.0.1:${server.address().port}`;
 }
-const {createDeviceKey, publicKeyOf, signDelegate} = await import('../js/online/signer.js');
+const {createDeviceKey, publicKeyOf, signDelegate, signMessage} = await import('../js/online/signer.js');
 const {CONTRACT, merchantAccount, view} = await import('../server/chain/near.js');
 
 let jar = '';
@@ -88,6 +89,33 @@ try {
     const got = (await balance(accountId, 'jade')) - jadeBefore;
     console.log(`+ took the counter: received ${got} jade cents`);
     if (got !== BigInt(taken.receipt.total)) throw new Error('The counter paid a different amount');
+  }
+
+  // A Shop Deed: buy one that is for sale within this account's jade, open its counting room with a NEP-413 message
+  // signed by the device key, check that another deed's room refuses the same proof, and list the deed again.
+  const jadeNow = await balance(accountId, 'jade');
+  const forSale = (await view('deeds')).find(d => d.for_sale && BigInt(d.for_sale) <= jadeNow && d.owner_id !== accountId);
+  if (!forSale) console.log("  no deed is for sale within this account's jade: the deed and counting-room steps are skipped");
+  else {
+    const bought = await call('deed_buy', {token_id: forSale.token_id, max_price: forSale.for_sale});
+    if (!bought.ok) throw new Error('Buying the deed failed: ' + bought.code);
+    const enter = async tokenId => {
+      const {challenge} = await api('POST', '/api/deeds/room/challenge', {token_id: tokenId});
+      const signed = await signMessage(device, accountId, challenge);
+      return api('POST', '/api/deeds/room', {token_id: tokenId, account_id: accountId, public_key: signed.publicKey, signature: signed.signature, nonce: challenge.nonce});
+    };
+    let opened = null;
+    for (let i = 0; i < 6 && !opened; i++) opened = await enter(forSale.token_id).catch(async error => { if (!/NOT_HOLDER/.test(error.message)) throw error; await wait(1500); return null; });
+    if (!opened) throw new Error('The holder could not open the counting room');
+    console.log(`+ bought ${forSale.token_id} for ${forSale.for_sale}; counting room opened (${opened.letter.voice}): "${opened.letter.say.slice(0, 120)}…"`);
+    const history = (await view('deed_history', {token_id: forSale.token_id})).history;
+    if (history.holdings.at(-1).owner !== accountId) throw new Error('The deed history does not show the new holder');
+    const other = (await view('deeds')).find(d => d.owner_id !== accountId);
+    const shut = await enter(other.token_id).then(() => false, error => /NOT_HOLDER/.test(error.message));
+    console.log(`  another deed's counting room refused this account: ${shut}`);
+    if (!shut) throw new Error('A non-holder entered a counting room');
+    const relisted = await call('deed_list', {token_id: forSale.token_id, price: forSale.for_sale});
+    if (!relisted.ok) throw new Error('Listing the deed again failed: ' + relisted.code);
   }
 
   // Proof of battle: the server deals a seed, the commission is fought with the game's own rules, the server replays it

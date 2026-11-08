@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deed Registry · Ashes of the Ninth Heaven</title>
+<meta name="description" content="Each Shop Deed's history (every holder, what the shop paid them, every claim and sale) and the counting room only its current holder can open.">
+<link rel="icon" href="/favicon.svg">
+<style>
+:root{--bg:#101016;--panel:#1a1922;--panel-hi:#211f2a;--line:#32303c;--text:#e9e2d6;--muted:#b3ab9e;--gold:#c8a064;--gold-bright:#ffe1a2;--green:#9fd39a;--red:#f0a09a;--serif:Georgia,'Times New Roman',serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif}
+main{max-width:1080px;margin:0 auto;padding:24px 16px 64px}
+h1{font:clamp(1.7rem,4vw,2.4rem) var(--serif);margin:4px 0}
+h2{font:1.25rem var(--serif);margin:0 0 8px}
+.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:.75rem;color:var(--gold)}
+a{color:var(--gold-bright)}
+.lead{color:var(--muted);max-width:760px}
+nav.deeds{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}
+nav.deeds a{padding:4px 10px;border:1px solid var(--line);border-radius:999px;text-decoration:none;color:var(--text);font-size:.88rem}
+nav.deeds a[aria-current]{border-color:var(--gold);color:var(--gold-bright)}
+.top{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;margin-top:8px}
+.top img{width:100%;border-radius:12px;border:1px solid var(--line);background:#16141b;aspect-ratio:600/840}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile b{display:block;font:1.35rem var(--serif);color:var(--gold-bright);font-variant-numeric:tabular-nums}
+.tile span{font-size:.82rem;color:var(--muted)}
+.check{margin-top:10px;font-size:.88rem;color:var(--muted)}
+.check .ok{color:var(--green)}.check .no{color:var(--red)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:14px;min-width:0}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:500}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+#holders{min-width:600px}
+#holders td:nth-child(3){white-space:nowrap}
+code{font-size:.85em;word-break:break-all;background:var(--panel-hi);padding:1px 5px;border-radius:4px}
+.muted{color:var(--muted);font-size:.88rem}
+.bars{display:block;width:100%;height:120px}
+.bars rect{fill:var(--gold)}
+.bars rect.other{fill:#7d6a4c}
+button{font:inherit;min-height:40px;padding:8px 14px;border-radius:8px;border:1px solid var(--gold);background:#2a2330;color:var(--gold-bright);cursor:pointer}
+button:hover:not(:disabled){background:#3a3040}
+button:disabled{opacity:.5;cursor:default}
+.room{border-color:var(--gold)}
+.room.locked{background:repeating-linear-gradient(135deg,var(--panel),var(--panel) 12px,#1d1b25 12px,#1d1b25 24px)}
+.letter{font:1.05rem/1.6 var(--serif);background:#1f1b16;border:1px solid #4a3c28;border-radius:8px;padding:14px 16px;margin:8px 0}
+.letter footer{font:.82rem system-ui,sans-serif;color:var(--muted);margin-top:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+textarea{width:100%;min-height:90px;background:var(--panel-hi);color:var(--text);border:1px solid var(--line);border-radius:6px;font:12px/1.4 ui-monospace,monospace;padding:8px}
+details summary{cursor:pointer;color:var(--gold-bright)}
+.events li{margin:4px 0}
+.say{color:var(--gold-bright)}
+@media(max-width:640px){.top{grid-template-columns:1fr}.top img{max-width:240px;margin:0 auto;display:block}th,td{padding:5px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Ashes of the Ninth Heaven · The Deed Registry</div>
+  <h1 id="title">Shop Deeds</h1>
+  <p class="lead">Each shop in the Night Bazaar has one deed. Whoever holds it takes the owner's share of each profitable market day, and runs the shop or lets its merchant's agent run it. The Honest Ledger keeps every deed's history: who held it, what the shop paid them, and what they claimed. <a href="/">Back to the game</a>.</p>
+  <nav class="deeds" id="deeds" aria-label="Deeds"></nav>
+
+  <div class="top">
+    <img id="art" alt="">
+    <div>
+      <div class="tiles" id="tiles"></div>
+      <p class="check" id="check"></p>
+      <p class="muted" id="where"></p>
+    </div>
+  </div>
+
+  <section class="room locked" id="room" aria-live="polite">
+    <h2>The counting room</h2>
+    <div id="room-body"><p class="muted">Loading…</p></div>
+  </section>
+
+  <section>
+    <h2>Earnings by market day</h2>
+    <p class="muted" id="days-note"></p>
+    <div id="days"></div>
+  </section>
+
+  <section>
+    <h2>Every holder</h2>
+    <div class="scroll"><table id="holders"><thead><tr><th>Holder</th><th>How</th><th>Since</th><th class="num">Paid</th><th class="num">Earned while held</th><th class="num">Claimed</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>What holders did</h2>
+    <ul class="events" id="events"></ul>
+  </section>
+</main>
+<script type="module" src="/js/deed.js"></script>
+</body>
+</html>

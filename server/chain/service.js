@@ -8,7 +8,7 @@
 // practice market and every method here reports `offline`.
 import {createHash} from 'node:crypto';
 import {actions, buildDelegateAction, encodeDelegateAction, parseNearAmount, PublicKey, Signature, teraToGas} from 'near-api-js';
-import {CONTRACT, MINTER, PARENT, RELAYER, account, exists, loadAgentKey, loadKey, merchantAccount, newKeyPair, provider, view} from './near.js';
+import {CONTRACT, MINTER, PARENT, RELAYER, account, exists, loadAgentKey, loadKey, merchantAccount, newKeyPair, provider, query, view} from './near.js';
 import {MERCHANTS} from '../../js/market/merchant-rules.js';
 import {decryptSecret, encryptSecret} from '../secrets.js';
 
@@ -223,6 +223,26 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     return view('haggles_of', {account_id: accountId}).catch(() => []);
   }
 
+  /** A deed's history as the contract keeps it: {deed, history}. */
+  async function deedHistory(tokenId) {
+    await need();
+    return view('deed_history', {token_id: tokenId});
+  }
+  /** Who holds a deed right now (null if there is no such deed). */
+  async function holderOf(tokenId) {
+    await need();
+    return (await view('nft_token', {token_id: tokenId}))?.owner_id ?? null;
+  }
+  /** True if `publicKey` is an access key of `accountId` right now. */
+  async function hasKey(accountId, publicKey) {
+    await need();
+    try { await query({request_type: 'view_access_key', account_id: accountId, public_key: publicKey}); return true; }
+    catch (error) {
+      if (/does not exist|UNKNOWN_ACCESS_KEY|UNKNOWN_ACCOUNT|doesn't exist|invalid/i.test(String(error?.message) + JSON.stringify(error?.data ?? ''))) return false;
+      throw error;
+    }
+  }
+
   async function balances(accountId, tokenIds) {
     await need();
     const amounts = await view('mt_batch_balance_of', {account_id: accountId, token_ids: tokenIds});
@@ -275,7 +295,7 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     } catch (error) { return {...base, rpcError: error.message}; }
   }
 
-  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, haggles, quote, forgetBooks, report, agentsReady, agentCall,
+  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, haggles, deedHistory, holderOf, hasKey, quote, forgetBooks, report, agentsReady, agentCall,
     ministryRelief, contract: CONTRACT, parent: PARENT};
 }
 

@@ -2,7 +2,9 @@
 //   1. The deployed contract is the committed binary (code hash = sha256 of contracts/items/res/items.wasm).
 //   2. Live parity: for every merchant, the rules file prices trades from the on-chain books exactly as the contract does.
 //   3. Escrow adds up: the contract's own jade equals every deed vault plus every job's unpaid wages.
-//   4. Shop Deeds: nine NEP-171 tokens, one per merchant, nobody over the per-account cap.
+//   4. Shop Deeds: nine NEP-171 tokens, one per merchant, nobody over the per-account cap. Each deed's history agrees
+//      with it: the vault equals the opening vault + earnings - claims, the shares by day add up to the earnings, and
+//      the last holder in the history is the deed's owner.
 //   5. Jobs: each open job's escrow equals its units times its pay, within the rules' unit cap.
 //   6. Agent keys: every merchant's function-call keys may call only merchant_set_strategy and merchant_post_job.
 // Run: npm run chain:verify
@@ -60,6 +62,15 @@ for (const d of deeds) if (!d.held_by_ministry) owners[d.owner_id] = (owners[d.o
 check(deeds.length === R.MERCHANTS.length && new Set(deeds.map(d => d.rules_id)).size === R.MERCHANTS.length,
   `${deeds.length} Shop Deeds (NEP-171), one per merchant; nft_total_supply ${await view('nft_total_supply')}`);
 check(Object.values(owners).every(n => n <= R.DEED.maxPerAccount), `no account holds more than ${R.DEED.maxPerAccount} deeds (${Object.keys(owners).length} player holders)`);
+const records = await Promise.all(deeds.map(d => view('deed_history', {token_id: d.token_id})));
+const disagree = records.filter(({deed, history: h}) => {
+  const days = h.days.reduce((sum, d) => sum + BigInt(d.share), 0n);
+  return BigInt(h.opening_vault) + BigInt(h.earned) - BigInt(h.claimed) !== BigInt(deed.vault) || h.holdings.at(-1).owner !== deed.owner_id
+    || (h.days.length < 60 && days !== BigInt(h.earned));
+});
+const sold = records.reduce((n, r) => n + r.history.sales, 0), events = records.reduce((n, r) => n + r.history.events.length, 0);
+check(!disagree.length, `every deed's history agrees with the deed: vault = opening + earned - claimed, days add up, last holder = owner (${sold} sales, ${events} holder actions on record)`);
+for (const r of disagree) console.log('  ', r.deed.token_id, JSON.stringify({vault: r.deed.vault, opening: r.history.opening_vault, earned: r.history.earned, claimed: r.history.claimed}));
 
 // 5. Jobs
 check(jobs.every(j => BigInt(j.escrow) === BigInt(j.wanted) * BigInt(j.pay_each) && Number(j.wanted) <= R.JOBS.maxUnits),

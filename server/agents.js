@@ -240,3 +240,45 @@ export async function haggleSay(receipt, books, {fetchImpl = fetch, apiKey = pro
     return {say: text, lines, source: 'near-ai', model};
   } catch { return fallback; }
 }
+
+
+// ------------------------------------------------------------------ the counting room: the merchant writes to the deed's holder
+
+/** The merchant's private letter to whoever holds its deed (shown only in the counting room). The numbers come from the
+ *  ledger; NEAR AI may write the letter in the merchant's voice, but it is used only if it states the vault exactly. */
+export async function ownerLetter(books, deed, history, tick, {fetchImpl = fetch, apiKey = process.env.NEAR_AI_API_KEY, model = process.env.NEAR_AI_MODEL || 'z-ai/glm-5.3-flash', timeoutMs = 12_000} = {}) {
+  const def = R.MERCHANTS.find(m => m.id === books?.rules_id);
+  if (!def || !deed) return {say: '', lines: [], source: 'rules'};
+  const vault = `${R.jade(Number(deed.vault))} jade`, cash = Number(books.cash);
+  const mine = (history?.days ?? []).filter(d => d.holder === deed.owner_id).slice(-5);
+  const earned = mine.reduce((sum, d) => sum + Number(d.share), 0);
+  const goods = books.goods.filter(g => (MARKET_TOKENS[g.token_id]?.tier ?? 1) <= 3);
+  const short = goods.filter(g => Number(g.stock) * 100 < Number(g.target) * 85).sort((a, b) => a.stock / a.target - b.stock / b.target).slice(0, 3).map(g => name(g.token_id));
+  const glut = goods.filter(g => Number(g.stock) > Number(g.target) * 2).slice(0, 2).map(g => name(g.token_id));
+  const plan = rulesDecision(books, tick);
+  const status = books.closed ? 'shuttered' : books.status;
+  const lines = [
+    `Your vault holds ${vault}${Number(deed.vault) > 0 ? ', yours to take whenever you like.' : '. It fills at the end of each profitable market day.'}`,
+    mine.length ? `My last ${mine.length} good ${mine.length === 1 ? 'day' : 'days'} under your seal paid you ${R.jade(earned)} jade.` : 'No profitable day has closed under your seal yet.',
+    `The shop is ${status}; the purse holds ${R.jade(cash)} jade, ${Math.round(cash * 100 / def.startCash)}% of what I opened with.`,
+    short.length ? `I am short of ${short.join(', ')}.` : 'My shelves hold what I want of everything.',
+    ...(glut.length ? [`I hold far too much ${glut.join(' and ')}.`] : []),
+    deed.agent ? `My agent decides each day. Tomorrow: ${plan.say}` : 'You decide each day; I wait on your word.',
+  ];
+  const fallback = {say: lines.join(' '), lines, source: 'rules'};
+  if (!apiKey) return fallback;
+  const c = who(def.id);
+  const system = `You are ${def.name}, ${c?.role ?? 'a merchant'} in the Night Bazaar of a dark xianxia city. ${c?.description ?? ''} `
+    + `Temperament: ${def.temperament}. Write a short private letter (under 90 words) to the cultivator who holds the deed to your shop, `
+    + `in your own voice, from these facts only. Say the vault exactly as "${vault}". Give them one piece of honest advice. `
+    + 'Speak only of the bazaar, its goods and its people. No greeting line and no signature.';
+  try {
+    const res = await fetchImpl('https://cloud-api.near.ai/v1/chat/completions', {method: 'POST', signal: AbortSignal.timeout(timeoutMs),
+      headers: {Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json'},
+      body: JSON.stringify({model, reasoning_effort: 'low', max_tokens: 600, messages: [{role: 'system', content: system}, {role: 'user', content: JSON.stringify({facts: lines})}]})});
+    if (!res.ok) return fallback;
+    const text = String((await res.json()).choices?.[0]?.message?.content ?? '').trim().replace(/^["']|["']$/g, '');
+    if (!text || text.length > 800 || CHAIN_WORDS.test(text) || !text.includes(vault)) return fallback;
+    return {say: text, lines, source: 'near-ai', model};
+  } catch { return fallback; }
+}

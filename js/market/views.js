@@ -348,7 +348,7 @@ export function shopDeeds(game, ui = {}) {
     return `<article class="deed-card ${mine ? 'mine' : ''}"><img class="deed-art" src="/deeds/${esc(d.rules_id)}.svg?at=${ledgerState.at}" alt="The deed to ${esc(name)}'s shop" loading="lazy">
       <div class="deed-body"><h3>${esc(name)}</h3><p class="microcopy">Held by ${esc(holder)} · vault ${R.jade(vault)} jade · ${d.agent ? `${esc(name)}'s agent decides` : 'the holder decides'}</p>
       <div class="quick-actions">${actions}</div>
-      <a class="microcopy" href="https://testnet.nearblocks.io/nft-token/${encodeURIComponent(ledgerState.contract ?? '')}/${encodeURIComponent(d.token_id)}" target="_blank" rel="noopener">Its history on the record</a></div></article>`; // chain-words-ok
+      <a class="microcopy" href="/deed/${esc(d.rules_id)}" target="_blank" rel="noopener">${mine ? 'Its history · your counting room' : 'Its history: every holder and what it paid them'}</a></div></article>`;
   }).join('');
   return `<section class="quick-panel deeds-panel"><h2>Shop deeds</h2>${intro}<div class="deed-grid">${cards || '<p class="microcopy">No deeds yet.</p>'}</div></section>`;
 }

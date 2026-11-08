@@ -38,7 +38,8 @@ Each merchant decided this itself, once a market day, signing with a key that ca
 
 **Shop deeds**: nine NEP-171 NFTs, one per shop, with a picture drawn live from the shop's books. Buy one and 10% of every
 profitable day fills the deed's vault, which moves with the deed. Run the shop yourself and its agent stands down, or
-appoint the agent again.
+appoint the agent again. Open **its history** (`/deed/<merchant>`): every holder and what the deed paid them. Then press
+your seal at the **counting room**: the merchant's private letter to you, which only the current holder can read.
 
 ## 2:15 · A week in a minute (20 s)
 
@@ -48,6 +49,6 @@ scenario and watch a shop go under, then get rekindled by its patrons.
 ## 2:35 · For judges (25 s)
 
 `/judge`: one click makes a throwaway account. Each button is a real transaction with a link: a trade at the exact
-quote, a haggle and its counter, a job delivery, a deed bought and relisted, and a forbidden transfer refused. Then
+quote, a haggle and its counter, a job delivery, a deed bought and relisted, its counting room opened (and another deed's refused), and a forbidden transfer refused. Then
 `npm run verify` (everything offline) and `npm run chain:verify` (the live contract is the committed binary, and live
 quotes match the rules file).

@@ -75,6 +75,26 @@ export function encodeDelegate(delegate) {
 }
 export const argsBytes = args => args instanceof Uint8Array ? args : new TextEncoder().encode(JSON.stringify(args));
 
+const MESSAGE_PREFIX = 2 ** 31 + 413; // NEP-413: signed messages, which can never be mistaken for a transaction
+/** The exact bytes a NEP-413 signed message is signed over (before sha256). The nonce is 32 bytes. */
+export function encodeSignedMessage({message, nonce, recipient, callbackUrl = null}) {
+  if (!(nonce instanceof Uint8Array) || nonce.length !== 32) throw new Error('the nonce must be 32 bytes');
+  const w = new Writer();
+  w.u32(MESSAGE_PREFIX);
+  w.string(message);
+  w.parts.push(nonce);
+  w.string(recipient);
+  if (callbackUrl == null) w.u8(0);
+  else { w.u8(1); w.string(callbackUrl); }
+  return w.done();
+}
+/** Signs a NEP-413 message with the device key, as a wallet's signMessage would: {accountId, publicKey, signature}. */
+export async function signMessage(keyPair, accountId, {message, nonce, recipient}) {
+  const hash = new Uint8Array(await subtle.digest('SHA-256', encodeSignedMessage({message, nonce: fromBase64(nonce), recipient})));
+  const signature = new Uint8Array(await subtle.sign({name: 'Ed25519'}, keyPair.privateKey, hash));
+  return {accountId, publicKey: await publicKeyOf(keyPair), signature: toBase64(signature)};
+}
+
 export const supported = () => Boolean(subtle);
 
 export async function createDeviceKey() {

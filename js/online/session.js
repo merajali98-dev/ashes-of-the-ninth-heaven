@@ -1,7 +1,7 @@
 // The browser side of sign-in and the ledger seal. Everything degrades to the practice market: if the page is served
 // without the game server (a static host, file://) or the server has no ledger, `state.ledger` stays false.
 import {deviceKey, forgetDeviceKey} from './keystore.js';
-import {signDelegate, supported} from './signer.js';
+import {signDelegate, signMessage, supported} from './signer.js';
 
 export const state = {loaded: false, signedIn: false, user: null, signIn: null, ledger: false, busy: false};
 
@@ -56,6 +56,12 @@ export async function sealCall(contractId, methodName, args) {
   const signed = await signDelegate(keyPair, {senderId: state.user.seal.id, receiverId: contractId, publicKey, nonce,
     maxBlockHeight: BigInt(next.maxBlockHeight), actions: [{methodName, args, gas: 100_000_000_000_000n, deposit: 0n}]});
   return call('POST', '/api/seal/relay', signed);
+}
+
+/** Answers a counting-room challenge: the device key signs it (a standard signed message, never a trade). */
+export async function signChallenge(challenge) {
+  const {keyPair} = await deviceKey();
+  return signMessage(keyPair, state.user.seal.id, challenge);
 }
 
 // Google's own "Sign in with Google" button (Google Identity Services), loaded only when the sign-in dialog opens.

@@ -52,6 +52,8 @@ enum Key {
     // Added with haggling and merchants' jobs, opened on demand like the listings.
     Haggles,
     Jobs,
+    // Added with the deed histories, opened on demand like the listings.
+    DeedHistories,
 }
 
 /// A player's haggle with one merchant on one market day.
@@ -130,6 +132,64 @@ pub struct Deed {
     /// True: the merchant's own agent decides the strategy. False: only the holder does.
     pub agent: bool,
     pub minted_ms: u64,
+}
+
+/// How many holders, market days and events a deed's history keeps (the oldest go first; the totals never do).
+const DEED_HOLDINGS_KEPT: usize = 24;
+const DEED_DAYS_KEPT: usize = 60;
+const DEED_EVENTS_KEPT: usize = 40;
+
+/// One holder's time with a deed: how it came to them, and what the deed earned and paid them while they held it.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct Holding {
+    pub owner: AccountId,
+    pub since_ms: u64,
+    pub since_tick: u64,
+    /// minted | bought | transferred | returned | held when the log began
+    pub how: String,
+    pub price: Option<U128>,
+    pub earned: U128,
+    pub claimed: U128,
+}
+
+/// The owner's share of one profitable market day, and who held the deed then.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct DeedDay {
+    pub day: u64,
+    pub share: U128,
+    pub holder: AccountId,
+}
+
+/// Something done with the deed: claimed, listed, unlisted, the agent appointed, the shop run, or a change of hands.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct DeedEvent {
+    pub at_ms: u64,
+    pub tick: u64,
+    pub kind: String,
+    /// Who did it (for a change of hands: who signed it; `note` names the previous holder).
+    pub account: AccountId,
+    pub amount: U128,
+    pub note: String,
+}
+
+/// A deed's own record, kept by the contract. `opening_vault + earned - claimed` is always the vault.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct DeedHistory {
+    pub token_id: String,
+    pub since_ms: u64,
+    pub opening_vault: U128,
+    pub earned: U128,
+    pub claimed: U128,
+    pub sales: u32,
+    pub sold_for: U128,
+    pub holders: u32,
+    pub holdings: Vec<Holding>,
+    pub days: Vec<DeedDay>,
+    pub events: Vec<DeedEvent>,
 }
 
 const MAX_OPEN_LISTINGS: usize = 400;
@@ -216,6 +276,8 @@ struct CatchUp {
     cash_delta: i64,
     dividends: Vec<(AccountId, i64)>,
     deed_share: i64,
+    /// (market day, share) for each profitable day the deed was paid for.
+    deed_days: Vec<(u64, i64)>,
 }
 
 #[near(serializers = [json])]
@@ -718,6 +780,10 @@ impl Contract {
         }
         drop(deeds);
         Self::save_all_deeds(&all);
+        for token_id in &minted {
+            let d = self.deed(token_id);
+            self.record(&d, |_| {});
+        }
         if !minted.is_empty() {
             emit("nep171", "1.0.0", "nft_mint", json!({"owner_id": self.ministry_id, "token_ids": minted, "memo": "shop deeds"}));
         }
@@ -756,7 +822,7 @@ impl Contract {
             }
             emit_mt("mt_transfer", json!({"old_owner_id": buyer, "new_owner_id": d.owner, "token_ids": [JADE], "amounts": [U128(price - tax)], "memo": format!("{token_id} bought")}));
         }
-        self.move_deed(&token_id, &d.owner, &buyer, Some(format!("bought for {price}")))
+        self.move_deed(&token_id, &d.owner, &buyer, Some(format!("bought for {price}")), "bought", Some(price))
     }
 
     /// The holder puts the deed up for sale at their price (deposit-free, so a game key can sign it), or takes it down.
@@ -764,7 +830,9 @@ impl Contract {
         let d = self.deed_of_caller(&token_id);
         require!(price.map_or(true, |p| p.0 > 0 && p.0 <= 1_000_000_000), "BAD_PRICE");
         let mut deeds = Self::deed_store();
-        deeds.insert(token_id, Deed { price, ..d });
+        deeds.insert(token_id, Deed { price, ..d.clone() });
+        drop(deeds);
+        self.event(&d, if price.is_some() { "listed" } else { "unlisted" }, price.map_or(0, |p| p.0), String::new());
     }
 
     /// The holder takes the deed's vault: the owner's share it has earned so far.
@@ -784,20 +852,36 @@ impl Contract {
         let have = self.balance(&d.owner, JADE_INDEX);
         self.set_balance(&d.owner, JADE_INDEX, have + amount);
         emit_mt("mt_transfer", json!({"old_owner_id": escrow, "new_owner_id": d.owner, "token_ids": [JADE], "amounts": [U128(amount)], "memo": format!("{token_id} vault claimed")}));
-        Self::deed_store().insert(token_id, Deed { vault: U128(0), ..d });
+        Self::deed_store().insert(token_id, Deed { vault: U128(0), ..d.clone() });
+        self.record(&d, |h| {
+            h.claimed = U128(h.claimed.0 + amount);
+            if let Some(now) = h.holdings.last_mut() {
+                now.claimed = U128(now.claimed.0 + amount);
+            }
+        });
+        self.event(&d, "claimed", amount, String::new());
         U128(amount)
     }
 
     /// The holder runs the shop: the same once-a-day strategy, within the same limits, as the merchant's agent.
     pub fn deed_set_strategy(&mut self, token_id: String, target_bps: Vec<(String, u16)>, specialty: Option<String>) {
         let d = self.deed_of_caller(&token_id);
-        self.set_strategy(d.merchant_id, target_bps, specialty);
+        let note = specialty.clone().unwrap_or_default();
+        self.set_strategy(d.merchant_id.clone(), target_bps, specialty);
+        self.event(&d, "ran the shop", 0, note);
     }
 
     /// The holder appoints the merchant's agent to decide (true) or keeps the decision for themself (false).
     pub fn deed_appoint_agent(&mut self, token_id: String, appoint: bool) {
         let d = self.deed_of_caller(&token_id);
-        Self::deed_store().insert(token_id, Deed { agent: appoint, ..d });
+        Self::deed_store().insert(token_id, Deed { agent: appoint, ..d.clone() });
+        self.event(&d, if appoint { "appointed the agent" } else { "took the decisions" }, 0, String::new());
+    }
+
+    /// A deed's history: every holder (how they got it, what it earned and paid them), its profitable days and its events.
+    pub fn deed_history(&self, token_id: String) -> Value {
+        let d = self.deed(&token_id);
+        json!({"deed": self.deed_view(&d), "history": self.history_of(&d)})
     }
 
     pub fn deeds(&self) -> Vec<Value> {
@@ -811,7 +895,7 @@ impl Contract {
         require!(approval_id.is_none(), "approvals are not supported");
         let d = self.deed(&token_id);
         require!(d.owner == env::predecessor_account_id(), "NOT_YOURS");
-        self.move_deed(&token_id, &d.owner, &receiver_id, memo);
+        self.move_deed(&token_id, &d.owner, &receiver_id, memo, "transferred", None);
     }
 
     #[payable]
@@ -821,7 +905,7 @@ impl Contract {
         let d = self.deed(&token_id);
         let sender = env::predecessor_account_id();
         require!(d.owner == sender, "NOT_YOURS");
-        self.move_deed(&token_id, &sender, &receiver_id, memo);
+        self.move_deed(&token_id, &sender, &receiver_id, memo, "transferred", None);
         let spare = env::prepaid_gas().saturating_sub(env::used_gas()).saturating_sub(GAS_FOR_RESOLVE).saturating_sub(GAS_RESERVE);
         require!(spare.as_tgas() >= 5, "attach more gas for the receiver");
         Promise::new(receiver_id.clone())
@@ -844,7 +928,7 @@ impl Contract {
         };
         let d = self.deed(&token_id);
         if give_back && d.owner == receiver_id {
-            self.move_deed(&token_id, &receiver_id, &previous_owner_id, Some("returned".into()));
+            self.move_deed(&token_id, &receiver_id, &previous_owner_id, Some("returned".into()), "returned", None);
             return false;
         }
         true
@@ -1160,11 +1244,26 @@ impl Contract {
     fn deeds_held(&self, account: &AccountId) -> usize {
         Self::all_deeds().iter().filter(|id| Self::deed_store().get(*id).map_or(false, |d| &d.owner == account)).count()
     }
-    fn move_deed(&mut self, token_id: &str, from: &AccountId, to: &AccountId, memo: Option<String>) -> Deed {
+    fn move_deed(&mut self, token_id: &str, from: &AccountId, to: &AccountId, memo: Option<String>, how: &str, price: Option<u128>) -> Deed {
         require!(!self.merchants.contains_key(to), "a shop cannot own its own deed");
         require!(to == &self.ministry_id || self.deeds_held(to) < DEED_MAX_PER_ACCOUNT, "TOO_MANY_DEEDS");
         let d = self.deed(token_id);
         require!(&d.owner == from, "NOT_YOURS");
+        // Days the shop earned but has not been caught up on yet belong to the seller's time with the deed.
+        let fresh = self.caught_up(&d.merchant_id);
+        self.merchants.insert(d.merchant_id.clone(), fresh);
+        let d = self.deed(token_id);
+        let (at_ms, tick) = (env::block_timestamp_ms(), self.current_tick());
+        self.record(&d, |h| {
+            h.holders += 1;
+            if let Some(p) = price {
+                h.sales += 1;
+                h.sold_for = U128(h.sold_for.0 + p);
+            }
+            h.holdings.push(Holding { owner: to.clone(), since_ms: at_ms, since_tick: tick, how: how.to_string(), price: price.map(U128),
+                earned: U128(0), claimed: U128(0) });
+        });
+        self.event(&d, how, price.unwrap_or(0), from.to_string());
         // A new holder starts with the merchant's agent appointed and nothing listed; the vault stays with the deed.
         let next = Deed { owner: to.clone(), price: None, agent: true, ..d };
         Self::deed_store().insert(token_id.to_string(), next.clone());
@@ -1175,6 +1274,36 @@ impl Contract {
         let for_sale = if d.owner == self.ministry_id { Some(U128(DEED_PRICE)) } else { d.price };
         json!({"token_id": d.token_id, "rules_id": d.rules_id, "merchant_id": d.merchant_id, "owner_id": d.owner, "for_sale": for_sale,
             "vault": d.vault, "agent": d.agent, "owner_share_bps": DEED_OWNER_SHARE_BPS, "held_by_ministry": d.owner == self.ministry_id})
+    }
+    fn history_store() -> LookupMap<String, DeedHistory> {
+        LookupMap::new(Key::DeedHistories)
+    }
+    /// The deed's history, or the start of one: a deed older than the log begins with its holder and vault at that moment.
+    fn history_of(&self, d: &Deed) -> DeedHistory {
+        if let Some(h) = Self::history_store().get(&d.token_id) {
+            return h.clone();
+        }
+        let minted = d.owner == self.ministry_id;
+        let since_ms = if minted { d.minted_ms } else { env::block_timestamp_ms() };
+        DeedHistory { token_id: d.token_id.clone(), since_ms, opening_vault: d.vault, earned: U128(0), claimed: U128(0), sales: 0, sold_for: U128(0),
+            holders: 1, holdings: vec![Holding { owner: d.owner.clone(), since_ms, since_tick: if minted { 0 } else { self.current_tick() },
+                how: if minted { "minted" } else { "held when the log began" }.into(), price: None, earned: U128(0), claimed: U128(0) }],
+            days: vec![], events: vec![] }
+    }
+    /// Changes a deed's history and keeps it within its caps (holdings, days and events drop their oldest; the totals stay).
+    fn record(&mut self, d: &Deed, change: impl FnOnce(&mut DeedHistory)) {
+        let mut h = self.history_of(d);
+        change(&mut h);
+        let over = |n: usize, cap: usize| n.saturating_sub(cap);
+        h.holdings.drain(..over(h.holdings.len(), DEED_HOLDINGS_KEPT));
+        h.days.drain(..over(h.days.len(), DEED_DAYS_KEPT));
+        h.events.drain(..over(h.events.len(), DEED_EVENTS_KEPT));
+        Self::history_store().insert(d.token_id.clone(), h);
+    }
+    fn event(&mut self, d: &Deed, kind: &str, amount: u128, note: String) {
+        let e = DeedEvent { at_ms: env::block_timestamp_ms(), tick: self.current_tick(), kind: kind.into(), account: env::predecessor_account_id(),
+            amount: U128(amount), note };
+        self.record(d, |h| h.events.push(e));
     }
     fn nft_json(&self, d: &Deed) -> Value {
         let m = self.merchants.get(&d.merchant_id);
@@ -1360,6 +1489,9 @@ impl Contract {
                     let cut = (profit as i128 * DEED_OWNER_SHARE_BPS / BPS) as i64;
                     m.state.cash -= cut;
                     deed_share += cut;
+                    if cut > 0 {
+                        out.deed_days.push((tick / TICKS_PER_DAY, cut));
+                    }
                 }
                 m.day_start = m.state.cash;
                 m.capital_in = 0;
@@ -1405,9 +1537,19 @@ impl Contract {
             let key = format!("deed:{}", m.rules_id);
             let mut deeds = Self::deed_store();
             if let Some(mut d) = deeds.get(&key).cloned() {
+                let before = d.clone();
                 d.vault = U128(d.vault.0 + out.deed_share as u128);
                 deeds.insert(key.clone(), d);
                 drop(deeds);
+                self.record(&before, |h| {
+                    for (day, share) in &out.deed_days {
+                        h.earned = U128(h.earned.0 + *share as u128);
+                        if let Some(now) = h.holdings.last_mut() {
+                            now.earned = U128(now.earned.0 + *share as u128);
+                        }
+                        h.days.push(DeedDay { day: *day, share: U128(*share as u128), holder: before.owner.clone() });
+                    }
+                });
                 let escrow = env::current_account_id();
                 let held = self.balance(&escrow, JADE_INDEX);
                 self.set_balance(&escrow, JADE_INDEX, held + out.deed_share as u128);

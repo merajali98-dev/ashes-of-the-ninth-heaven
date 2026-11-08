@@ -44,7 +44,7 @@ async function harness(options = {}) {
     };
     return {get: path => call('GET', path), post: (path, body, headers) => call('POST', path, body ?? {}, headers), cookie: () => jar};
   };
-  return {store, chain, client, close: () => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); })};
+  return {store, chain, client, base, close: () => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); })};
 }
 
 test('a guest plays at once, then signs in by email and keeps the same account and seal', async () => {
@@ -215,5 +215,45 @@ test('a relayed haggle comes back with the merchant\'s answer, and the ledger\'s
     const journal = (await c.get('/api/journal')).json;
     assert.equal(journal.haggles[0].outcome, 'countered');
     assert.equal(journal.haggles[0].tx, 'haggle-tx');
+  } finally { await h.close(); }
+});
+
+test("a deed's history is public; its counting room opens only for the holder's signed challenge and shuts when the deed moves", async () => {
+  const {KeyPair, KeyPairSigner} = await import('near-api-js');
+  const h = await harness();
+  try {
+    const key = KeyPair.fromRandom('ed25519'), publicKey = key.getPublicKey().toString();
+    let holder = 'alice.ashes-ninth.testnet';
+    const deed = () => ({token_id: 'deed:lu-yan', rules_id: 'lu-yan', owner_id: holder, vault: '1234', agent: true});
+    const goods = [{token_id: 'mat:essence-ember-1', stock: '2', target: '120', base_target: '120', flow: 0}];
+    Object.assign(h.chain, {
+      contract: 'items.ashes',
+      market: async () => ({tick: 30, merchants: [{account_id: 'm-lu-yan.ashes', rules_id: 'lu-yan', name: 'Lu Yan', cash: '200000', closed: false, status: 'open', goods}]}),
+      deedHistory: async () => ({deed: deed(), history: {opening_vault: '0', earned: '1234', claimed: '0', holdings: [], days: [], events: []}}),
+      holderOf: async () => holder,
+      hasKey: async (account, k) => account === 'alice.ashes-ninth.testnet' && k === publicKey,
+    });
+    const c = h.client();
+    const public_ = await c.get('/api/deeds/history?id=deed:lu-yan');
+    assert.equal(public_.json.ledger.history.earned, '1234');
+    assert.equal((await c.get('/api/deeds/history?id=../secrets')).status, 400);
+
+    const {challenge} = (await c.post('/api/deeds/room/challenge', {token_id: 'deed:lu-yan'})).json;
+    const signed = await new KeyPairSigner(key).signNep413Message(holder, {message: challenge.message, nonce: Buffer.from(challenge.nonce, 'base64'),
+      recipient: challenge.recipient});
+    const opened = await c.post('/api/deeds/room', {token_id: 'deed:lu-yan', account_id: holder, public_key: publicKey,
+      signature: Buffer.from(signed.signature).toString('base64'), nonce: challenge.nonce});
+    assert.equal(opened.status, 200);
+    assert.match(opened.json.letter.say, /Your vault holds 12\.34 jade/);
+    assert.equal(opened.json.ledger.holder, holder);
+
+    const again = await c.get('/api/deeds/room?id=deed:lu-yan');
+    assert.equal(again.status, 401, 'no pass, no room');
+    const visit = pass => fetch(`${h.base}/api/deeds/room?id=deed:lu-yan`, {headers: {'X-Room-Pass': pass}});
+    assert.equal((await visit(opened.json.pass)).status, 200);
+    holder = 'bob.ashes-ninth.testnet'; // sold
+    const shut = await visit(opened.json.pass);
+    assert.equal(shut.status, 403);
+    assert.equal((await shut.json()).error, 'NOT_HOLDER');
   } finally { await h.close(); }
 });

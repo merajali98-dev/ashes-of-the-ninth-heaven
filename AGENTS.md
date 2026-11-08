@@ -26,6 +26,8 @@ and the test that proves it.
 | A battle reward is minted once, and only after the server's replay agrees | `tests/battle-replay.test.js`, `tests/api.test.js` |
 | Language models never set a price: their output is parsed, filtered, clamped and checked, with the rules as fallback | `tests/agents.test.js`, `tests/haggle.test.js` |
 | Jobs and deeds never create jade; escrow always equals vaults plus unpaid wages | contract tests, `chain:verify` |
+| A deed's history agrees with the deed: vault = opening vault + earned - claimed; the last holder is the owner | contract tests, `chain:verify` (live, all nine deeds) |
+| The counting room opens only for the deed's current holder: a NEP-413 signature, the key checked with `view_access_key`, and the holder checked with `nft_token` on every visit | `tests/deed-room.test.js`, `tests/api.test.js`, `chain:e2e` |
 
 ## If you change things
 
@@ -49,5 +51,6 @@ and the test that proves it.
 | `server/api.js` | Sign-in (Google, email, guest), seal creation, relay, ledger views, battle start/claim, status, deed pictures |
 | `server/chain/` | RPC with fail-over (`near.js`), the relayer and the minter queue (`service.js`) |
 | `server/agents.js` | Merchant agents: rules layer, NEAR AI layer, jobs, the haggle voice, Ministry relief |
+| `server/room.js`, `deed.html`, `js/deed.js` | The Deed Registry: each deed's history, and the counting room's gate (NEP-413) |
 | `contracts/items/` | The contract, its unit tests, the parity test and the committed binary |
 | `docs/` | `game-loop.md`, `shop-deeds.md`, `agents.md`, `economy-design.md` and design and QA notes for the rest of the game |

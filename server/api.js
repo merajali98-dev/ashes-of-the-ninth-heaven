@@ -11,7 +11,8 @@ import {ChainError} from './chain/service.js';
 import {WELCOME} from './grants.js';
 import {MARKET_TOKENS} from '../js/market/tokens.js';
 import {replayCommission} from '../js/progression.js';
-import {haggleSay} from './agents.js';
+import {haggleSay, ownerLetter} from './agents.js';
+import {DEED_ID, createRoomGate} from './room.js';
 
 const LEDGER_TOKENS = ['jade', ...Object.keys(MARKET_TOKENS)];
 // What one account may add to its holdings per hour without a market trade (battle rewards, selling gear). Day 7 adds
@@ -68,6 +69,26 @@ export function createApi({store, chain, googleKeys} = {}) {
     seal: user.player ? {id: user.player.accountId, devices: user.player.devices.length} : null,
   });
   const origin = req => process.env.ASHES_PUBLIC_URL || `http://${req.headers.host}`;
+
+  // Shop Deeds: each deed's public history, and the counting room only its current holder can open (server/room.js).
+  const gate = createRoomGate({chain});
+  async function deedRecord(tokenId) {
+    if (!DEED_ID.test(tokenId)) throw new HttpError(400, 'NO_DEED');
+    const [record, market] = await Promise.all([chain.deedHistory(tokenId), chain.market()]);
+    return {...record, books: market.merchants.find(m => m.rules_id === record.deed.rules_id) ?? null, tick: market.tick, contract: chain.contract};
+  }
+  async function countingRoom(tokenId, accountId) {
+    const record = await deedRecord(tokenId);
+    // The letter is written once per holder, market day and vault, so a refresh does not ask the model again.
+    const key = [accountId, Math.floor(record.tick / 24), record.deed.vault, record.deed.agent].join('|');
+    data.letters ??= {};
+    if (data.letters[tokenId]?.key !== key) {
+      const letter = await ownerLetter(record.books, record.deed, record.history, record.tick);
+      data.letters[tokenId] = {key, letter: {say: letter.say, lines: letter.lines, voice: letter.source}};
+      store.save();
+    }
+    return {ledger: {...record, holder: accountId, journal: (data.journal ?? {})[record.deed.rules_id] ?? []}, letter: data.letters[tokenId].letter};
+  }
 
   const routes = {
     'GET /api/session': async req => ({signedIn: Boolean(currentUser(req)), user: view(currentUser(req)),
@@ -260,6 +281,24 @@ export function createApi({store, chain, googleKeys} = {}) {
         `commission ${battle.school} ${battle.tier}, battle replayed`);
       store.save();
       return {ok: true, granted};
+    },
+
+    'GET /api/deeds/history': async (req, _body, url) => ({ledger: await deedRecord(url.searchParams.get('id') || '')}),
+
+    'POST /api/deeds/room/challenge': async (req, body) => {
+      limit('room:' + clientIp(req), 30, 60e3);
+      return {challenge: gate.challenge(String(body.token_id || ''), new URL(origin(req)).host)};
+    },
+    'POST /api/deeds/room': async (req, body) => {
+      limit('room:' + clientIp(req), 30, 60e3);
+      const tokenId = String(body.token_id || '');
+      const {pass, accountId} = await gate.enter({tokenId, accountId: String(body.account_id || ''), publicKey: String(body.public_key || ''),
+        signature: String(body.signature || ''), nonce: String(body.nonce || '')});
+      return {pass, ...(await countingRoom(tokenId, accountId))};
+    },
+    'GET /api/deeds/room': async (req, _body, url) => {
+      const tokenId = url.searchParams.get('id') || '';
+      return countingRoom(tokenId, await gate.check(tokenId, req.headers['x-room-pass']));
     },
 
     'GET /api/journal': async () => ({ledger: data.journal ?? {}, haggles: data.haggles ?? []}),
