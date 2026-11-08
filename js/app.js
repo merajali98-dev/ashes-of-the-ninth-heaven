@@ -908,8 +908,8 @@ online.load().then(async state=>{
     try{await online.ensureSeal()}catch(error){notify(sealError(error),true)}
     await syncLedger();if(page!=='market')navigate('market');notify('Signed in. Your seal is pressed.')}
   else if(state.signedIn&&state.ledger&&state.user?.seal){await online.ensureSeal().catch(()=>{});await syncLedger()}
-  // Re-render only if this changes what is on screen (the seal chip lives on the market page).
-  if(state.signedIn||page==='market')render();
+  // Re-render so the header shows "Sign in" (or the seal's name) on every page, unless a duel or dialog is mid-flight.
+  if(!combatBusy&&!dialog.open)render();
 });
 // The practice market runs in this browser: one market hour per real minute, caught up on return.
 const away=market.advance(game,Date.now());
