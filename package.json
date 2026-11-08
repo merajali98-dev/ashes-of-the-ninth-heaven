@@ -17,6 +17,7 @@
     "market:trace": "node scripts/gen-market-trace.mjs",
     "chain:e2e": "node scripts/chain-e2e.mjs",
     "chain:verify": "node scripts/chain-verify.mjs",
+    "health": "node scripts/health.mjs",
     "deploy": "node scripts/deploy-vm.mjs"
   },
   "engines": {

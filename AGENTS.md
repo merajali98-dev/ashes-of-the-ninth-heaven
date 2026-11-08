@@ -39,7 +39,7 @@ and the test that proves it.
 - **New player methods:** add them to `PLAYER_METHODS` in `server/chain/service.js` and bump the device key id in
   `js/online/keystore.js`, so browsers request a key that may call them.
 - **Do not** run `chain:deploy`, `agents-setup`, `deeds-setup` or `chain-clock`: they change the live deployment and need
-  the owner's keys. Everything under `npm run verify` and `chain:verify` is safe.
+  the owner's keys. Everything under `npm run verify`, `chain:verify` and `health` (a read-only check of the live game) is safe.
 - Player-facing text speaks of the Honest Ledger, seals and jade, never of chains or wallets. The Judge's Desk and the
   docs name the chain plainly.
 
