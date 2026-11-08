@@ -385,7 +385,7 @@ export function haggleDialog(game, {merchantId, tokenId, side, qty, busy = false
   const world = marketWorld(game), m = world.merchants[merchantId], token = world.tokens[tokenId];
   if (!m || !token) return {title: 'Haggle', body: '<p>That merchant is not at the bazaar.</p>'};
   const q = playerQuote(game, merchantId, tokenId, side, qty);
-  const posted = q.ok ? q.total : 0, today = haggleToday(merchantId);
+  const posted = result ? result.posted : q.ok ? q.total : 0, today = haggleToday(merchantId); // after an answer: the price it was made against
   const verb = side === 'sell' ? `sell ${qty} ${token.name} to` : `buy ${qty} ${token.name} from`;
   const head = `<div class="haggle-head">${picture(portrait(merchantId), 'merchant-face')}<div><b>${esc(m.name)}</b>
     <small>${esc(TEMPERAMENT[m.temperament] ?? '')}</small><p>You want to ${esc(verb)} ${esc(m.name)}. Posted price: <b>${R.jade(posted)} jade</b>${side === 'sell' ? ' for you' : ''}.</p></div></div>`;
