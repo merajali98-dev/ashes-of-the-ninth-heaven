@@ -345,7 +345,7 @@ export function shopDeeds(game, ui = {}) {
       button(d.agent ? `I'll run the shop` : `Let ${name}'s agent decide`, 'deed-agent', `${d.token_id}|${!d.agent}`, {className: 'compact quiet'}),
       d.agent ? '' : `<form data-form="deed-specialty" data-id="${esc(d.token_id)}" class="deed-sell"><select name="school" aria-label="Specialty today">${R.EDICT.schools.map(s => `<option value="${s}">${esc(schoolName[s] ?? s)}</option>`).join('')}</select><button type="submit" class="btn compact quiet">Specialise</button></form>`,
     ].join('') : price ? button(`Buy for ${R.jade(price)} jade`, 'deed-buy', d.token_id, {className: 'compact', disabled: purse < price}) : '<small>Not for sale</small>';
-    return `<article class="deed-card ${mine ? 'mine' : ''}"><img class="deed-art" src="/deeds/${esc(d.rules_id)}.svg?at=${ledgerState.at}" alt="The deed to ${esc(name)}'s shop" loading="lazy">
+    return `<article class="deed-card ${mine ? 'mine' : ''}"><img class="deed-art" src="/deeds/${esc(d.rules_id)}.svg?v=${encodeURIComponent([ledgerState.books?.tick, d.vault, d.owner_id, d.agent, d.for_sale].join('.'))}" alt="The deed to ${esc(name)}'s shop" loading="lazy">
       <div class="deed-body"><h3>${esc(name)}</h3><p class="microcopy">Held by ${esc(holder)} · vault ${R.jade(vault)} jade · ${d.agent ? `${esc(name)}'s agent decides` : 'the holder decides'}</p>
       <div class="quick-actions">${actions}</div>
       <a class="microcopy" href="/deed/${esc(d.rules_id)}" target="_blank" rel="noopener">${mine ? 'Its history · your counting room' : 'Its history: every holder and what it paid them'}</a></div></article>`;

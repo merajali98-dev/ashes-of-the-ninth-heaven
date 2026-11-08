@@ -205,17 +205,30 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     } finally { minting = false; }
   }
 
-  let books = {at: 0, value: null};
+  // The market's books, read from the contract. Fresh for 3 s; up to 30 s old they are served at once while one shared
+  // refresh runs (a page of nine deed pictures used to start nine full reads). A trade clears them (forgetBooks).
+  let books = {at: 0, value: null, pending: null, generation: 0};
   async function market() {
     await need();
-    if (Date.now() - books.at < 3000 && books.value) return books.value;
+    const age = Date.now() - books.at;
+    if (books.value && age < 3000) return books.value;
+    if (!books.pending) {
+      const generation = books.generation;
+      books.pending = readMarket().then(value => {
+        if (books.generation === generation) books = {...books, at: Date.now(), value, pending: null};
+        return value;
+      }, error => { if (books.generation === generation) books.pending = null; throw error; });
+      books.pending.catch(() => {}); // a background refresh that fails must not crash the server; the next call retries
+    }
+    return books.value && age < 30_000 ? books.value : books.pending;
+  }
+  async function readMarket() {
     const ids = await view('market_merchants');
     const [tick, info, listings, deeds, jobs] = await Promise.all([view('market_tick'), view('contract_info'), view('listings', {limit: 200}).catch(() => []),
       view('deeds').catch(() => []), view('jobs').catch(() => [])]);
     const merchants = [];
     for (let i = 0; i < ids.length; i += 3) merchants.push(...await Promise.all(ids.slice(i, i + 3).map(id => view('market_merchant', {merchant_id: id}))));
-    books = {at: Date.now(), value: {tick, testimonyBps: info.testimony_bps ?? 0, merchants, listings, deeds, jobs}};
-    return books.value;
+    return {tick, testimonyBps: info.testimony_bps ?? 0, merchants, listings, deeds, jobs};
   }
   /** The player's latest haggle with each merchant (today's counter, if any, is among them). */
   async function haggles(accountId) {
@@ -253,7 +266,7 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     await need();
     return view('market_quote', args);
   }
-  const forgetBooks = () => { books = {at: 0, value: null}; };
+  const forgetBooks = () => { books = {at: 0, value: null, pending: null, generation: books.generation + 1}; };
 
   /** A merchant agent's decision, signed with its strategy-only key and relayed. */
   let agentKeys = null;

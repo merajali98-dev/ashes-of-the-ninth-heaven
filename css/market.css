@@ -221,3 +221,6 @@
 .quick-jobs{border-color:var(--gold)}
 @media(max-width:670px){.header-seal{margin-right:2px;padding:3px 8px;min-height:28px;font-size:.75rem;max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 @media(max-width:440px){.game-wordmark>span{display:none}}
+
+/* Google's sign-in button is an iframe: with a dark page it gets an opaque white box unless its holder is light. */
+#seal-google{color-scheme:light}
