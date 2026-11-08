@@ -11,6 +11,7 @@ the contract enforces.** The model never sets a price.
 | Hires players when its shelves run short: one job at a time, paid from its purse into escrow | `merchant_post_job` | `checkJob`: a good under its want, at most the shortfall and 20 units, pay between its bid and its own valuation, at most 10% of the purse, never below its stop-buying line; one open job; the wage returns after a market day | `jobOptions` / `settleJob` in `server/agents.js` |
 | Answers players who haggle, in character | NEAR AI phrases the decision; the contract made it | `haggle` in the rules file; the line is used only if it states the decided price exactly and stays in the fiction | `haggleSay` in `server/agents.js` |
 | Writes a public journal of what it decided and why, with the transaction | the game server's journal | | `/api/journal`, the merchant's stall, the Judge's Desk |
+| Writes a private letter to whoever holds its Shop Deed, shown only in the deed's counting room | NEAR AI writes it from the ledger's figures | used only if it states the vault exactly; otherwise the rules write it | `ownerLetter` in `server/agents.js`, `docs/shop-deeds.md` |
 
 ## Keys: what an agent can and cannot do
 

@@ -19,6 +19,10 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
 |---|---|---|
 | ![A haggle: Granny Qiu accepts 10.40 jade, in character](docs/preview-haggle.png) | ![Merchants hiring: jobs paid from escrow](docs/preview-hiring.png) | ![Shop Deeds: NFTs that are the shops](docs/preview-deeds.png) |
 
+| A deed's history and its counting room (holders only) |
+|---|
+| ![The Deed Registry: totals that match the vault, the counting room open for its holder with the merchant's letter](docs/preview-deed-room.png) |
+
 ## Verify it yourself
 
 | Command | What it proves | Needs |
