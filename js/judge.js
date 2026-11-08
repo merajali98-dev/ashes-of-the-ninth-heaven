@@ -96,16 +96,16 @@ async function act(kind) {
   }
   if (kind === 'haggle') {
     // Ask for a little more than the rules let Lu Yan give (1.5× her room), so she counters; then take the counter.
-    const quote = (await api(`/api/ledger/quote?m=${encodeURIComponent(merchant.account_id)}&t=${encodeURIComponent(TOKEN)}&side=sell&n=1`)).ledger;
+    const quote = (await api(`/api/ledger/quote?m=${encodeURIComponent(merchant.account_id)}&t=${encodeURIComponent(TOKEN)}&side=sell&n=5`)).ledger;
     if (quote.code !== 'OK') { log(false, `Lu Yan will not buy right now: ${esc(quote.code)}`); return; }
     const good = merchant.goods.find(g => g.token_id === TOKEN), helps = Number(good.stock) < Number(good.target);
     const def = R.MERCHANTS.find(m => m.id === LU), posted = Number(quote.total);
     const room = Math.trunc(posted * (R.temperamentOf(def).haggleBps + (helps ? R.HAGGLE.needBps : 0)) / R.BPS);
     const offer = posted + Math.max(1, Math.trunc(room * 3 / 2));
-    const said = await session.sealCall(ledger.contract, 'market_haggle', {merchant_id: merchant.account_id, token_id: TOKEN, amount: '1', sell: true, offer: String(offer)});
+    const said = await session.sealCall(ledger.contract, 'market_haggle', {merchant_id: merchant.account_id, token_id: TOKEN, amount: '5', sell: true, offer: String(offer)});
     if (!said.ok) { log(false, `Refused: <code>${esc(said.code)}</code>${said.code === 'HAGGLED_TODAY' ? ' (one haggle per merchant per market day; a market day is 24 minutes here)' : ''}${txLink(said.tx)}`); return; }
     const r = said.receipt;
-    log(true, `Offered ${jade(offer)} jade for 1 Mortal Cinder Essence against Lu Yan's posted ${jade(r.posted)}. The contract's <code>haggle()</code> gave her ${r.bend_bps / 100}% of room${r.helps ? ' (more, because she is short of it)' : ''}:
+    log(true, `Offered ${jade(offer)} jade for 5 Mortal Cinder Essence against Lu Yan's posted ${jade(r.posted)}. The contract's <code>haggle()</code> gave her ${r.bend_bps / 100}% of room${r.helps ? ' (more, because she is short of it)' : ''}:
       <b>${esc(r.outcome)}</b>${r.outcome === 'countered' ? ` at ${jade(r.price)} jade` : r.outcome === 'accepted' ? ` at ${jade(r.price)} jade` : ''}${txLink(said.tx)}<br>
       Lu Yan (${said.voice === 'near-ai' ? 'NEAR AI, in character' : 'the rules\u2019 words'}): “${esc(said.say)}”`);
     if (r.outcome !== 'countered') return;

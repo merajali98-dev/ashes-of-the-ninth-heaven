@@ -22,7 +22,7 @@ another contract, or call any other method. The relayer pays the gas for the age
 ## Two layers of decision
 
 1. **The rules (always available).** `rulesDecision` wants less of a glut, more of a scarce good and more of the
-   Pagoda Edict's school. `jobOptions` lists every job the rules allow: tier 1–3 goods under 60% of the merchant's
+   Pagoda Edict's school. `jobOptions` lists every job the rules allow: tier 1–3 goods under 85% of the merchant's
    want, with the pay range. `settleJob` pays a third of the way from the bid to the merchant's own valuation.
 2. **NEAR AI Cloud (in character).** The merchant gets its books, the week's Edict and event, the rules' suggestions
    and its hiring options, and replies with JSON. The reply is parsed, filtered (no chain words, no breaking the
@@ -73,7 +73,7 @@ bazaar open for visitors. Both are visible on the ledger:
   calls `ministry_rekindle`. This mints jade in the open (an `mt_mint` event, memo "ministry relief") up to half the
   shop's starting purse, booked as capital, not profit. The merchant's journal says so. Players can rekindle a shop
   first with `patron_invest` and become its patrons.
-- **Thrift.** An agent whose purse is under half its start may not ask for more stock or post a job (`thrifty` in
+- **Thrift.** An agent whose purse is under 40% of its start may not ask for more stock or post a job (`thrifty` in
   `server/agents.js`).
 
 ## Tests

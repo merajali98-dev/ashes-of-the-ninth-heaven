@@ -76,7 +76,7 @@ test('a merchant with a thin purse stops asking for more stock and stops hiring'
   const b = books('lu-yan');
   const decision = {targets: [['a', 12_000], ['b', 8_000]], changes: [{token: 'a', from: 10_000, to: 12_000}, {token: 'b', from: 10_000, to: 8_000}], job: {token: 'a'}};
   assert.deepEqual(thrifty(b, decision), decision, 'a full purse decides freely');
-  const thin = thrifty({...b, cash: '100000'}, decision);
+  const thin = thrifty({...b, cash: '90000'}, decision);
   assert.deepEqual(thin.targets, [['b', 8_000]]);
   assert.equal(thin.job, null);
 });

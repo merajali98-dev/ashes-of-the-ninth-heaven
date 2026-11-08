@@ -66,14 +66,14 @@ const stateOf = books => {
     flow: Object.fromEntries(books.goods.map(g => [g.token_id, g.flow])), closed: books.closed, specialty: books.specialty};
 };
 
-/** Every job the rules allow this merchant today: goods (tier 1–3) under 60% of what it wants, with the pay range. */
+/** Every job the rules allow this merchant today: goods (tier 1–3) under 85% of what it wants, with the pay range. */
 export function jobOptions(books, tick, testimonyBps = 0) {
   const def = R.MERCHANTS.find(m => m.id === books.rules_id);
   if (!def || books.closed || books.status !== 'open') return [];
   const state = stateOf(books), out = [];
   for (const g of books.goods) {
     const token = MARKET_TOKENS[g.token_id], stock = Number(g.stock), target = Number(g.target);
-    if (!token || (token.tier ?? 1) > 3 || stock * 10 >= target * 6) continue;
+    if (!token || (token.tier ?? 1) > 3 || stock * 100 >= target * 85) continue;
     const q = R.quote({merchant: def, state, token, side: 'sell', qty: 1, tick, testimonyBps});
     const terms = R.jobTerms(def, {stock, target, bid: q.bid, mid: q.mid, cash: state.cash, open: true});
     if (!terms.maxUnits || terms.maxPay <= terms.minPay) continue;
@@ -136,10 +136,10 @@ export async function aiDecision(books, tick, rules, {fetchImpl = fetch, apiKey 
   } catch { return rules; }
 }
 
-/** A merchant whose purse is under half its start does not ask for more stock or hire: that is how idle shops go broke. */
+/** A merchant whose purse is under 40% of its start does not ask for more stock or hire: that is how idle shops go broke. */
 export function thrifty(books, decision) {
   const def = R.MERCHANTS.find(m => m.id === books.rules_id);
-  if (!def || Number(books.cash) * R.BPS >= def.startCash * 5_000) return decision;
+  if (!def || Number(books.cash) * R.BPS >= def.startCash * 4_000) return decision;
   const changes = decision.changes.filter(c => c.to <= c.from);
   return {...decision, changes, targets: changes.map(c => [c.token, c.to]), job: null};
 }
