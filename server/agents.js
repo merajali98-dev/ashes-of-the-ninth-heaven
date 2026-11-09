@@ -211,10 +211,21 @@ export function createAgents({store, chain, decide = aiDecision, every = 60_000,
           changes: decision.changes.map(c => ({token: c.token, name: name(c.token), from: c.from, to: c.to})), tx: result.tx ?? null,
           ok: result.ok || result.code === 'STRATEGY_ALREADY_SET_TODAY', code: result.ok ? null : result.code};
         const open = (market.jobs ?? []).some(j => j.merchant_id === books.account_id && !j.expired);
-        if (decision.job && !open) {
+        let job = decision.job && !open ? decision.job : null;
+        if (job && chain.merchant) {
+          // The strategy just moved this merchant's targets (and a caravan may have come since `market` was read), so the
+          // job is sized again against its books as they stand now; otherwise the contract refuses it (BAD_QTY, BAD_PAY).
+          const now = await chain.merchant(books.account_id).catch(() => null);
+          if (now) {
+            const fresh = {...books, ...now};
+            const option = jobOptions(fresh, market.tick, market.testimonyBps ?? 0).find(o => o.token === job.token);
+            job = option ? settleJob(fresh, option, {units: job.units, pay: job.payEach}) : null;
+          }
+        }
+        if (job) {
           const posted = await chain.agentCall(books.account_id, 'merchant_post_job',
-            {token_id: decision.job.token, amount: String(decision.job.units), pay_each: String(decision.job.payEach)});
-          entry.job = {...decision.job, tx: posted.tx ?? null, ok: Boolean(posted.ok), code: posted.ok ? null : posted.code};
+            {token_id: job.token, amount: String(job.units), pay_each: String(job.payEach)});
+          entry.job = {...job, tx: posted.tx ?? null, ok: Boolean(posted.ok), code: posted.ok ? null : posted.code};
         }
         data.agents ??= {};
         data.agents[books.account_id] = {day};

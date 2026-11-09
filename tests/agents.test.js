@@ -59,6 +59,25 @@ test('each merchant decides once per market day, signs from its own account and 
   assert.ok(entry.say.length > 10);
 });
 
+test('a job is sized on the books after the strategy lands, so the contract never refuses it for asking too much', async () => {
+  const jade = 'mat:seal-jade-1', T = R.openingState(R.MERCHANTS.find(m => m.id === 'mu-xiao'), MARKET_TOKENS).target[jade];
+  const before = {...books('mu-xiao', {[jade]: T - 20}), status: 'open'};
+  const after = {...before, goods: before.goods.map(g => g.token_id === jade ? {...g, stock: String(T - 19)} : g)};
+  const calls = [], store = {data: {}, save() {}};
+  const chain = {online: async () => true, agentsReady: async () => true, forgetBooks() {},
+    market: async () => ({tick: 30, merchants: [before], jobs: []}), merchant: async () => after,
+    agentCall: async (id, method, args) => { calls.push({method, args}); return {ok: true, tx: 'tx-' + calls.length}; }};
+  await createAgents({store, chain, decide: async (b, t, rules) => rules, perRound: 1}).round();
+  const post = calls.find(c => c.method === 'merchant_post_job');
+  assert.equal(post.args.token_id, jade);
+  assert.equal(post.args.amount, '19', 'the shortfall as it stands after the strategy, not as it was read');
+  assert.equal(store.data.journal['mu-xiao'][0].job.units, 19);
+  const full = {...before, goods: before.goods.map(g => g.token_id === jade ? {...g, stock: String(T)} : g)};
+  calls.length = 0; store.data = {};
+  await createAgents({store, chain: {...chain, merchant: async () => full}, decide: async (b, t, rules) => rules, perRound: 1}).round();
+  assert.equal(calls.filter(c => c.method === 'merchant_post_job').length, 0, 'no longer short: no job');
+});
+
 test('the crier tells what changed on the ledger: a closure, a new week, a decision', async () => {
   const {crierFromLedger} = await import('../js/market/crier.js');
   const before = {tick: 160, merchants: {'lu-yan': {name: 'Lu Yan', closed: false}}, journal: {}};

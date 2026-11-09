@@ -266,6 +266,11 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     await need();
     return view('market_quote', args);
   }
+  /** One merchant's books, read now (never from the cache): an agent sizes its job on these after its strategy lands. */
+  async function merchant(merchantId) {
+    await need();
+    return view('market_merchant', {merchant_id: merchantId});
+  }
   const forgetBooks = () => { books = {at: 0, value: null, pending: null, generation: books.generation + 1}; };
 
   /** A merchant agent's decision, signed with its strategy-only key and relayed. */
@@ -308,7 +313,7 @@ export function createChain({store, enabled = defaultEnabled()} = {}) {
     } catch (error) { return {...base, rpcError: error.message}; }
   }
 
-  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, haggles, deedHistory, holderOf, hasKey, quote, forgetBooks, report, agentsReady, agentCall,
+  return {online, createPlayer, addDevice, prepare, relay, grant, burn, pendingFor, flushMints, market, balances, haggles, deedHistory, holderOf, hasKey, quote, merchant, forgetBooks, report, agentsReady, agentCall,
     ministryRelief, contract: CONTRACT, parent: PARENT};
 }
 
