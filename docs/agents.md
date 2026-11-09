@@ -74,12 +74,13 @@ bazaar open for visitors. Both are visible on the ledger:
 
 - **The live clock.** One market hour lasts 5 real minutes (`set_clock`, owner only). The contract rebases its clock so
   no market hour is skipped or repeated. The fast-forward page still shows a week in a minute.
-- **Ministry relief.** If players leave a shop shuttered for two real hours, the game server (as the contract owner)
+- **Ministry relief.** If players leave a shop shuttered for 20 real minutes, the game server (as the contract owner)
   calls `ministry_rekindle`. This mints jade in the open (an `mt_mint` event, memo "ministry relief") up to half the
   shop's starting purse, booked as capital, not profit. The merchant's journal says so. Players can rekindle a shop
   first with `patron_invest` and become its patrons.
-- **Thrift.** An agent whose purse is under 40% of its start may not ask for more stock or post a job (`thrifty` in
-  `server/agents.js`).
+- **Thrift.** A struggling agent (purse under 30% of its start, the rules' thin line) may not ask for more stock or post
+  a job (`thrifty` in `server/agents.js`). Above it a job keeps jade in the bazaar: the wage goes to the merchant that
+  fills it, where a caravan restock would take it out of the market.
 
 ## Tests
 

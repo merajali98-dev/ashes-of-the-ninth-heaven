@@ -66,7 +66,7 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
 - **The minter is trusted for rewards.** Battle rewards are minted after the server replays the battle with the game's
   own code. That check runs on the server, not in the contract.
 - **A quiet testnet needs help to stay open.** One live market hour lasts 5 real minutes, and if players leave a shop
-  shuttered for two hours the contract owner rekindles it with openly minted jade ("ministry relief"). Both are
+  shuttered for 20 minutes the contract owner rekindles it with openly minted jade ("ministry relief"). Both are
   documented in [`docs/agents.md`](docs/agents.md).
 - **NEAR AI chooses words and options, never prices.** If the model is down, slow or wrong, the rules decide alone.
 - **Sponsored gas has limits:** 600 relayed calls per account per day, and the relayer stops below 1 NEAR.

@@ -167,17 +167,18 @@ export function fillLines(offer, hirerName) {
     hirer: `${offer.filler.name} brought me ${offer.units} ${good} at the wage I posted, ${pay} jade each.`};
 }
 
-/** A merchant whose purse is under 40% of its start does not ask for more stock or hire: that is how idle shops go broke. */
+/** A struggling merchant (purse under the rules' thin line, 30% of its start) does not ask for more stock or hire. Above it,
+ *  a hire keeps jade in the bazaar: the wage goes to another merchant, where a caravan restock would take it away. */
 export function thrifty(books, decision) {
   const def = R.MERCHANTS.find(m => m.id === books.rules_id);
-  if (!def || Number(books.cash) * R.BPS >= def.startCash * 4_000) return decision;
+  if (!def || Number(books.cash) * R.BPS >= def.startCash * R.PURSE.thinBelowBps) return decision;
   const changes = decision.changes.filter(c => c.to <= c.from);
   return {...decision, changes, targets: changes.map(c => [c.token, c.to]), job: null};
 }
 
 /** Runs the agents on a timer: at most a few merchants per minute, each once per market day. Also the Ministry's
  *  relief: a shop shuttered for `reliefAfter` (real time) that no player has rekindled is rekindled by the owner. */
-export function createAgents({store, chain, decide = aiDecision, every = 60_000, perRound = 3, reliefAfter = 2 * 3600e3}) {
+export function createAgents({store, chain, decide = aiDecision, every = 60_000, perRound = 3, reliefAfter = 20 * 60e3}) {
   const data = store.data;
   let timer = null, running = false;
   async function round() {
