@@ -96,6 +96,9 @@ is what it is. Players sign in with Google or email: no wallet, no recovery word
   sound design includes CC0 Kenney Foley ([`docs/audio-assets.md`](docs/audio-assets.md)).
 - **AI coding assistants:** Claude Code and Codex (with GPT-6 Astra) were used as coding assistants.
 - **License:** [MIT](LICENSE). Third-party audio keeps its own CC0 licence.
+- **Other hackathon submission:** the same author also submitted **BONFIRE**, a memecoin whose holders commission work
+  and burn their token only once it is accepted (Memecoins With Mechanics; Social Money). It is a separate, independent
+  project with its own repository, and the two share no code.
 
 ---
 
